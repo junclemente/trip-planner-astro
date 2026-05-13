@@ -1,0 +1,728 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Trip" page="trip">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
+    <div class="flex items-center gap-3 px-4 py-3 max-w-lg mx-auto">
+      <a id="back-btn" href="#" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <div class="flex-1 min-w-0">
+        <h1 id="trip-title" class="font-bold text-gray-900 truncate">Loading…</h1>
+        <p id="trip-subtitle" class="text-xs text-gray-500 truncate"></p>
+      </div>
+      <div id="trip-actions" class="flex items-center gap-1"></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex border-t border-gray-100 max-w-lg mx-auto">
+      <button class="tab-btn active" data-tab="checklist">Checklist</button>
+      <button class="tab-btn" data-tab="itinerary">Itinerary</button>
+      <button class="tab-btn" data-tab="info">Info</button>
+    </div>
+  </header>
+
+  <!-- Tab panels -->
+  <main class="max-w-lg mx-auto">
+    <div id="tab-checklist" class="tab-panel"></div>
+    <div id="tab-itinerary" class="tab-panel hidden"></div>
+    <div id="tab-info"      class="tab-panel hidden px-4 py-4 space-y-4"></div>
+  </main>
+
+  <!-- ── Add / Edit Item Modal ── -->
+  <div id="modal-item" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-item-title" class="text-lg font-bold">Add Item</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-item">&times;</button>
+      </div>
+      <form id="form-item" class="p-4 space-y-3">
+        <input type="hidden" id="item-edit-id" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Item *</label>
+          <input id="item-text" type="text" class="input" placeholder="e.g. Sunscreen" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Day</label>
+          <select id="item-day" class="input"></select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Badge</label>
+          <select id="item-badge" class="input">
+            <option value="">None</option>
+            <option value="essential">Essential</option>
+            <option value="clothing">Clothing</option>
+            <option value="flight">Flight</option>
+            <option value="medical">Medical</option>
+            <option value="concert">Concert</option>
+            <option value="hotel">Hotel</option>
+            <option value="activity">Activity</option>
+            <option value="personal">Personal</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+          <input id="item-qty" type="number" min="1" class="input" placeholder="Leave blank if N/A" />
+        </div>
+        <div class="flex gap-3 pt-1">
+          <button type="button" class="close-modal btn-secondary flex-1" data-modal="modal-item">Cancel</button>
+          <button type="submit" class="btn-primary flex-1">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Add / Edit Event Modal ── -->
+  <div id="modal-event" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-event-title" class="text-lg font-bold">Add Event</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-event">&times;</button>
+      </div>
+      <form id="form-event" class="p-4 space-y-3">
+        <input type="hidden" id="event-edit-id" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Event Title *</label>
+          <input id="event-title" type="text" class="input" placeholder="e.g. Flight check-in" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Day</label>
+          <select id="event-day" class="input"></select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Time</label>
+          <input id="event-time" type="time" class="input" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          <textarea id="event-notes" class="input resize-none" rows="2" placeholder="Optional details"></textarea>
+        </div>
+        <div class="flex gap-3 pt-1">
+          <button type="button" class="close-modal btn-secondary flex-1" data-modal="modal-event">Cancel</button>
+          <button type="submit" class="btn-primary flex-1">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Clothing Overrides Modal ── -->
+  <div id="modal-clothing" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 class="text-lg font-bold">Clothing Quantities</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-clothing">&times;</button>
+      </div>
+      <div class="p-4 space-y-4">
+        <p class="text-xs text-gray-500">Default: underwear + socks = nights, outfits = nights, pajamas = 1 set</p>
+        <div id="clothing-rows" class="space-y-3"></div>
+        <div class="flex gap-3 pt-1">
+          <button id="btn-reset-clothing" class="btn-secondary flex-1">Reset to Default</button>
+          <button id="btn-save-clothing" class="btn-primary flex-1">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Confirm Modal ── -->
+  <div id="modal-confirm" class="modal-overlay hidden">
+    <div class="modal-box max-w-sm">
+      <div class="p-6 text-center">
+        <div class="text-4xl mb-3" id="confirm-icon">⚠️</div>
+        <h3 id="confirm-title" class="text-lg font-bold mb-2">Are you sure?</h3>
+        <p id="confirm-msg" class="text-sm text-gray-600 mb-6"></p>
+        <div class="flex gap-3">
+          <button id="confirm-cancel" class="btn-secondary flex-1">Cancel</button>
+          <button id="confirm-ok" class="btn-danger flex-1">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</Layout>
+
+<script>
+import {
+  genId, getTrip, saveTrip, deleteTrip, archiveTrip, unarchiveTrip, exportTrip,
+} from '../scripts/store.js';
+import { BADGE_STYLES, badgeClasses, calcClothing, formatDate, formatDateRange, TEMPLATES } from '../scripts/templates.js';
+
+const BASE = import.meta.env.BASE_URL;
+const params = new URLSearchParams(window.location.search);
+const tripId = params.get('id');
+
+// Stop execution and redirect if trip not found
+if (!tripId) { location.replace(BASE); throw 0; }
+let trip = getTrip(tripId);
+if (!trip) { location.replace(BASE); throw 0; }
+
+const readonly = trip.status === 'archived';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+function reload() {
+  trip = getTrip(tripId);
+  renderHeader();
+  renderChecklist();
+  renderItinerary();
+  renderInfo();
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+
+const tabBtns = document.querySelectorAll('.tab-btn[data-tab]');
+const tabPanels = document.querySelectorAll('.tab-panel');
+let currentTab = 'checklist';
+
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentTab = btn.dataset.tab;
+    tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
+    tabPanels.forEach(p => p.classList.toggle('hidden', p.id !== `tab-${currentTab}`));
+  });
+});
+
+// ── Modals ───────────────────────────────────────────────────────────────────
+
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+document.querySelectorAll('.close-modal').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.modal));
+});
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay.id); });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['modal-item', 'modal-event', 'modal-clothing', 'modal-confirm'].forEach(closeModal);
+  }
+});
+
+function confirmAction(icon, title, msg, okLabel, okClass, onOk) {
+  document.getElementById('confirm-icon').textContent = icon;
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  const okBtn = document.getElementById('confirm-ok');
+  okBtn.textContent = okLabel;
+  okBtn.className = okClass + ' flex-1';
+  openModal('modal-confirm');
+  const handler = () => {
+    closeModal('modal-confirm');
+    onOk();
+    okBtn.removeEventListener('click', handler);
+  };
+  okBtn.addEventListener('click', handler);
+  document.getElementById('confirm-cancel').onclick = () => {
+    closeModal('modal-confirm');
+    okBtn.removeEventListener('click', handler);
+  };
+}
+
+// ── Header ───────────────────────────────────────────────────────────────────
+
+function renderHeader() {
+  document.getElementById('back-btn').href = BASE;
+  document.getElementById('trip-title').textContent = trip.name;
+  document.getElementById('trip-subtitle').textContent =
+    `${trip.destination}${trip.departFrom ? ' · from ' + trip.departFrom : ''} · ${formatDateRange(trip.startDate, trip.endDate)}`;
+
+  const actions = document.getElementById('trip-actions');
+  if (readonly) {
+    actions.innerHTML = `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">Archived</span>`;
+    return;
+  }
+  actions.innerHTML = `
+    <button id="btn-export-trip" class="btn-ghost p-1.5" title="Export JSON">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+    </button>
+    <button id="btn-archive-trip" class="btn-ghost p-1.5" title="Archive Trip">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+      </svg>
+    </button>`;
+
+  document.getElementById('btn-export-trip').addEventListener('click', () => exportTrip(trip));
+  document.getElementById('btn-archive-trip').addEventListener('click', () => {
+    confirmAction('📦', 'Archive this trip?',
+      'The trip will be frozen as a read-only snapshot in the Archive.',
+      'Archive', 'btn-secondary',
+      () => {
+        archiveTrip(tripId);
+        window.showToast?.('Trip archived');
+        setTimeout(() => location.replace(`${BASE}archive/`), 600);
+      });
+  });
+}
+
+// ── Checklist ────────────────────────────────────────────────────────────────
+
+function renderChecklist() {
+  const panel = document.getElementById('tab-checklist');
+  const items = trip.checklistItems ?? [];
+  const total = items.length;
+  const checked = items.filter(i => i.checked).length;
+  const pct = total === 0 ? 0 : Math.round((checked / total) * 100);
+
+  const byDay = {};
+  trip.days.forEach(d => (byDay[d.id] = []));
+  items.forEach(item => { if (byDay[item.dayId]) byDay[item.dayId].push(item); });
+
+  panel.innerHTML = `
+    <div class="sticky top-[97px] bg-white border-b border-gray-100 px-4 py-2 z-20 flex items-center justify-between gap-4">
+      <div class="flex-1">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+          <span>${checked}/${total} packed</span><span>${pct}%</span>
+        </div>
+        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${!readonly ? `<button id="btn-add-item-top" class="btn-primary text-xs py-1.5 px-3 flex-shrink-0">+ Add Item</button>` : ''}
+    </div>
+
+    ${trip.days.map(day => {
+      const dayItems = byDay[day.id] ?? [];
+      const dc = dayItems.filter(i => i.checked).length;
+      return `
+        <div class="mb-1">
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+            <div>
+              <span class="text-sm font-semibold text-gray-800">${esc(day.label)}</span>
+              <span class="text-xs text-gray-400 ml-1.5">${formatDate(day.date)}</span>
+            </div>
+            <span class="text-xs text-gray-400">${dc}/${dayItems.length}</span>
+          </div>
+          <ul>
+            ${dayItems.map(item => renderItemRow(item)).join('')}
+            ${dayItems.length === 0 ? `<li class="px-4 py-3 text-xs text-gray-400 italic">No items</li>` : ''}
+          </ul>
+          ${!readonly ? `
+          <button class="add-to-day w-full py-2 text-xs text-gray-400 hover:text-indigo-600 transition-colors border-b border-dashed border-gray-100"
+                  data-day-id="${esc(day.id)}">+ Add to ${esc(day.label)}</button>` : ''}
+        </div>`;
+    }).join('')}`;
+
+  // Events
+  panel.querySelector('#btn-add-item-top')?.addEventListener('click', () => openItemModal());
+  panel.querySelectorAll('.add-to-day').forEach(btn => {
+    btn.addEventListener('click', () => openItemModal(btn.dataset.dayId));
+  });
+  panel.querySelectorAll('[data-toggle]').forEach(cb => {
+    cb.addEventListener('change', () => toggleItem(cb.dataset.toggle));
+  });
+  panel.querySelectorAll('[data-edit-item]').forEach(btn => {
+    btn.addEventListener('click', () => openItemModal(null, btn.dataset.editItem));
+  });
+  panel.querySelectorAll('[data-del-item]').forEach(btn => {
+    btn.addEventListener('click', () => deleteItem(btn.dataset.delItem));
+  });
+}
+
+function renderItemRow(item) {
+  const badge = item.badge
+    ? `<span class="badge ${badgeClasses(item.badge)} ml-1">${esc(item.badge)}</span>` : '';
+  const qty = item.quantity != null ? `<span class="text-xs text-gray-400 ml-1">×${item.quantity}</span>` : '';
+  const editBtn = !readonly ? `
+    <button data-edit-item="${esc(item.id)}"
+            class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-0.5" title="Edit">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+      </svg>
+    </button>
+    <button data-del-item="${esc(item.id)}"
+            class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all p-0.5 text-base leading-none" title="Delete">×</button>` : '';
+
+  return `
+    <li class="group flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 border-b border-gray-50 transition-colors ${item.checked ? 'opacity-60' : ''}">
+      ${!readonly ? `<input type="checkbox" ${item.checked ? 'checked' : ''}
+             data-toggle="${esc(item.id)}"
+             class="h-4 w-4 rounded text-indigo-600 cursor-pointer flex-shrink-0">` : `
+      <div class="w-4 h-4 rounded border-2 ${item.checked ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex-shrink-0 flex items-center justify-center">
+        ${item.checked ? `<svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>` : ''}
+      </div>`}
+      <div class="flex-1 min-w-0">
+        <span class="text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}">${esc(item.text)}</span>
+        <span>${badge}${qty}</span>
+      </div>
+      <div class="flex items-center gap-0.5">${editBtn}</div>
+    </li>`;
+}
+
+function toggleItem(itemId) {
+  const item = trip.checklistItems.find(i => i.id === itemId);
+  if (!item) return;
+  item.checked = !item.checked;
+  saveTrip(trip);
+  // Update only the specific row instead of full re-render for performance
+  reload();
+}
+
+function deleteItem(itemId) {
+  trip.checklistItems = trip.checklistItems.filter(i => i.id !== itemId);
+  saveTrip(trip);
+  renderChecklist();
+  window.showToast?.('Item removed');
+}
+
+// ── Item Modal ───────────────────────────────────────────────────────────────
+
+function openItemModal(preselectedDayId = null, editItemId = null) {
+  const form = document.getElementById('form-item');
+  form.reset();
+  document.getElementById('item-edit-id').value = '';
+  document.getElementById('modal-item-title').textContent = editItemId ? 'Edit Item' : 'Add Item';
+
+  // Populate day select
+  const daySelect = document.getElementById('item-day');
+  daySelect.innerHTML = trip.days.map(d =>
+    `<option value="${esc(d.id)}" ${d.id === preselectedDayId ? 'selected' : ''}>${esc(d.label)}</option>`
+  ).join('');
+
+  if (editItemId) {
+    const item = trip.checklistItems.find(i => i.id === editItemId);
+    if (item) {
+      document.getElementById('item-edit-id').value = item.id;
+      document.getElementById('item-text').value = item.text;
+      document.getElementById('item-day').value = item.dayId;
+      document.getElementById('item-badge').value = item.badge ?? '';
+      document.getElementById('item-qty').value = item.quantity ?? '';
+    }
+  }
+  openModal('modal-item');
+  setTimeout(() => document.getElementById('item-text').focus(), 50);
+}
+
+document.getElementById('form-item').addEventListener('submit', e => {
+  e.preventDefault();
+  const editId = document.getElementById('item-edit-id').value;
+  const text = document.getElementById('item-text').value.trim();
+  const dayId = document.getElementById('item-day').value;
+  const badge = document.getElementById('item-badge').value || null;
+  const qtyVal = document.getElementById('item-qty').value;
+  const quantity = qtyVal ? parseInt(qtyVal) : null;
+
+  if (editId) {
+    const item = trip.checklistItems.find(i => i.id === editId);
+    if (item) Object.assign(item, { text, dayId, badge, quantity });
+  } else {
+    trip.checklistItems.push({ id: genId(), tripId, dayId, text, badge, checked: false, quantity });
+  }
+  saveTrip(trip);
+  closeModal('modal-item');
+  renderChecklist();
+  window.showToast?.(editId ? 'Item updated' : 'Item added');
+});
+
+// ── Itinerary ────────────────────────────────────────────────────────────────
+
+function renderItinerary() {
+  const panel = document.getElementById('tab-itinerary');
+  const events = trip.itineraryEvents ?? [];
+  const byDay = {};
+  trip.days.forEach(d => (byDay[d.id] = []));
+  events.forEach(ev => { if (byDay[ev.dayId]) byDay[ev.dayId].push(ev); });
+  trip.days.forEach(d => byDay[d.id].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')));
+
+  panel.innerHTML = `
+    ${!readonly ? `
+    <div class="px-4 py-3 border-b border-gray-100 flex justify-end">
+      <button id="btn-add-event-top" class="btn-primary text-xs py-1.5 px-3">+ Add Event</button>
+    </div>` : ''}
+    ${trip.days.map(day => {
+      const dayEvents = byDay[day.id] ?? [];
+      return `
+        <div class="mb-2">
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+            <div>
+              <span class="text-sm font-semibold text-gray-800">${esc(day.label)}</span>
+              <span class="text-xs text-gray-400 ml-1.5">${formatDate(day.date)}</span>
+            </div>
+            ${!readonly ? `
+            <button class="add-event-day text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                    data-day-id="${esc(day.id)}">+ Event</button>` : ''}
+          </div>
+          <div class="divide-y divide-gray-50">
+            ${dayEvents.map(ev => renderEventRow(ev)).join('')}
+            ${dayEvents.length === 0 ? `<div class="px-4 py-3 text-xs text-gray-400 italic">No events</div>` : ''}
+          </div>
+        </div>`;
+    }).join('')}`;
+
+  panel.querySelector('#btn-add-event-top')?.addEventListener('click', () => openEventModal());
+  panel.querySelectorAll('.add-event-day').forEach(btn => {
+    btn.addEventListener('click', () => openEventModal(btn.dataset.dayId));
+  });
+  panel.querySelectorAll('[data-edit-event]').forEach(btn => {
+    btn.addEventListener('click', () => openEventModal(null, btn.dataset.editEvent));
+  });
+  panel.querySelectorAll('[data-del-event]').forEach(btn => {
+    btn.addEventListener('click', () => deleteEvent(btn.dataset.delEvent));
+  });
+}
+
+function renderEventRow(ev) {
+  const editDel = !readonly ? `
+    <div class="flex gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <button data-edit-event="${esc(ev.id)}" class="btn-ghost p-1 text-xs" title="Edit">✏️</button>
+      <button data-del-event="${esc(ev.id)}" class="btn-ghost p-1 text-xs text-red-400 hover:text-red-600" title="Delete">×</button>
+    </div>` : '';
+  return `
+    <div class="group flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+      <div class="flex-shrink-0 w-14 text-right">
+        <span class="text-xs font-mono text-indigo-600 font-medium">${ev.time ? esc(ev.time) : '—'}</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium text-gray-900">${esc(ev.title)}</p>
+        ${ev.notes ? `<p class="text-xs text-gray-500 mt-0.5">${esc(ev.notes)}</p>` : ''}
+      </div>
+      ${editDel}
+    </div>`;
+}
+
+function deleteEvent(eventId) {
+  trip.itineraryEvents = trip.itineraryEvents.filter(e => e.id !== eventId);
+  saveTrip(trip);
+  renderItinerary();
+  window.showToast?.('Event removed');
+}
+
+// ── Event Modal ──────────────────────────────────────────────────────────────
+
+function openEventModal(preselectedDayId = null, editEventId = null) {
+  const form = document.getElementById('form-event');
+  form.reset();
+  document.getElementById('event-edit-id').value = '';
+  document.getElementById('modal-event-title').textContent = editEventId ? 'Edit Event' : 'Add Event';
+
+  const daySelect = document.getElementById('event-day');
+  daySelect.innerHTML = trip.days.map(d =>
+    `<option value="${esc(d.id)}" ${d.id === preselectedDayId ? 'selected' : ''}>${esc(d.label)}</option>`
+  ).join('');
+
+  if (editEventId) {
+    const ev = trip.itineraryEvents.find(e => e.id === editEventId);
+    if (ev) {
+      document.getElementById('event-edit-id').value = ev.id;
+      document.getElementById('event-title').value = ev.title;
+      document.getElementById('event-day').value = ev.dayId;
+      document.getElementById('event-time').value = ev.time ?? '';
+      document.getElementById('event-notes').value = ev.notes ?? '';
+    }
+  }
+  openModal('modal-event');
+  setTimeout(() => document.getElementById('event-title').focus(), 50);
+}
+
+document.getElementById('form-event').addEventListener('submit', e => {
+  e.preventDefault();
+  const editId = document.getElementById('event-edit-id').value;
+  const title = document.getElementById('event-title').value.trim();
+  const dayId = document.getElementById('event-day').value;
+  const time = document.getElementById('event-time').value;
+  const notes = document.getElementById('event-notes').value.trim();
+
+  if (editId) {
+    const ev = trip.itineraryEvents.find(e => e.id === editId);
+    if (ev) Object.assign(ev, { title, dayId, time, notes });
+  } else {
+    if (!trip.itineraryEvents) trip.itineraryEvents = [];
+    trip.itineraryEvents.push({ id: genId(), tripId, dayId, time, title, notes });
+  }
+  saveTrip(trip);
+  closeModal('modal-event');
+  renderItinerary();
+  window.showToast?.(editId ? 'Event updated' : 'Event added');
+});
+
+// ── Info tab ──────────────────────────────────────────────────────────────────
+
+function renderInfo() {
+  const panel = document.getElementById('tab-info');
+  const tmpl = TEMPLATES[trip.template]?.label ?? trip.template;
+  const clothing = calcClothing(trip.nights, trip.clothingOverrides ?? {});
+
+  panel.innerHTML = `
+    <!-- Trip details card -->
+    <div class="card p-4 space-y-3">
+      <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Trip Details</h3>
+      <div class="grid grid-cols-2 gap-y-2 text-sm">
+        <span class="text-gray-500">Name</span>      <span class="font-medium">${esc(trip.name)}</span>
+        <span class="text-gray-500">Destination</span> <span class="font-medium">${esc(trip.destination)}</span>
+        ${trip.departFrom ? `<span class="text-gray-500">From</span><span class="font-medium">${esc(trip.departFrom)}</span>` : ''}
+        <span class="text-gray-500">Dates</span>     <span class="font-medium">${formatDateRange(trip.startDate, trip.endDate)}</span>
+        <span class="text-gray-500">Nights</span>    <span class="font-medium">${trip.nights}</span>
+        <span class="text-gray-500">Template</span>  <span class="font-medium">${esc(tmpl)}</span>
+        ${trip.status === 'archived' ? `<span class="text-gray-500">Archived</span><span class="font-medium text-gray-500">${new Date(trip.archivedAt).toLocaleDateString()}</span>` : ''}
+      </div>
+    </div>
+
+    <!-- Clothing card -->
+    <div class="card p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Clothing</h3>
+        ${!readonly ? `<button id="btn-edit-clothing" class="text-xs text-indigo-600 font-medium hover:text-indigo-800">Override</button>` : ''}
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        ${[
+          ['Underwear', clothing.underwear],
+          ['Socks', clothing.socks],
+          ['Outfits', clothing.outfits],
+          ['Pajamas', clothing.pajamas],
+        ].map(([label, qty]) => `
+          <div class="bg-orange-50 rounded-lg px-3 py-2 flex items-center justify-between">
+            <span class="text-xs text-orange-700">${label}</span>
+            <span class="font-bold text-orange-900">×${qty}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Actions -->
+    ${!readonly ? `
+    <div class="card p-4 space-y-2">
+      <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Actions</h3>
+      <button id="info-export" class="btn-secondary w-full justify-start gap-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Export as JSON
+      </button>
+      <button id="info-archive" class="btn-secondary w-full justify-start gap-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+        </svg>
+        Archive Trip
+      </button>
+      <button id="info-delete" class="btn-danger w-full justify-start gap-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        Delete Trip
+      </button>
+    </div>` : `
+    <div class="card p-4 space-y-2">
+      <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Actions</h3>
+      <button id="info-export" class="btn-secondary w-full justify-start gap-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Export as JSON
+      </button>
+      <button id="info-unarchive" class="btn-secondary w-full justify-start gap-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+        </svg>
+        Restore to Active
+      </button>
+    </div>`}`;
+
+  panel.querySelector('#btn-edit-clothing')?.addEventListener('click', openClothingModal);
+  panel.querySelector('#info-export')?.addEventListener('click', () => exportTrip(trip));
+  panel.querySelector('#info-archive')?.addEventListener('click', () => {
+    confirmAction('📦', 'Archive trip?',
+      'Frozen read-only snapshot in Archive. You can restore it later.',
+      'Archive', 'btn-secondary',
+      () => { archiveTrip(tripId); window.showToast?.('Trip archived'); setTimeout(() => location.replace(`${BASE}archive/`), 600); });
+  });
+  panel.querySelector('#info-delete')?.addEventListener('click', () => {
+    confirmAction('🗑️', `Delete "${trip.name}"?`,
+      'This cannot be undone. All data will be permanently removed.',
+      'Delete', 'btn-danger',
+      () => { deleteTrip(tripId); window.showToast?.('Trip deleted'); setTimeout(() => location.replace(BASE), 600); });
+  });
+  panel.querySelector('#info-unarchive')?.addEventListener('click', () => {
+    unarchiveTrip(tripId);
+    window.showToast?.('Trip restored to active');
+    setTimeout(() => location.replace(BASE), 600);
+  });
+}
+
+// ── Clothing Override Modal ────────────────────────────────────────────────────
+
+function openClothingModal() {
+  const overrides = trip.clothingOverrides ?? {};
+  const clothing = calcClothing(trip.nights, overrides);
+  const rows = [
+    { key: 'underwear', label: 'Underwear', val: clothing.underwear },
+    { key: 'socks',     label: 'Socks',     val: clothing.socks },
+    { key: 'outfits',   label: 'Outfits',   val: clothing.outfits },
+    { key: 'pajamas',   label: 'Pajamas',   val: clothing.pajamas },
+  ];
+
+  document.getElementById('clothing-rows').innerHTML = rows.map(r => `
+    <div class="flex items-center justify-between">
+      <label class="text-sm font-medium text-gray-700 w-24">${r.label}</label>
+      <div class="flex items-center gap-2">
+        <button type="button" class="qty-dec w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-lg flex items-center justify-center" data-key="${r.key}">−</button>
+        <input type="number" min="0" max="30" value="${r.val}"
+               data-clothing="${r.key}" class="w-14 text-center input py-1.5 text-sm" />
+        <button type="button" class="qty-inc w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-lg flex items-center justify-center" data-key="${r.key}">+</button>
+      </div>
+    </div>`).join('');
+
+  document.querySelectorAll('.qty-dec').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const inp = document.querySelector(`[data-clothing="${btn.dataset.key}"]`);
+      if (inp && parseInt(inp.value) > 0) inp.value = parseInt(inp.value) - 1;
+    });
+  });
+  document.querySelectorAll('.qty-inc').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const inp = document.querySelector(`[data-clothing="${btn.dataset.key}"]`);
+      if (inp) inp.value = parseInt(inp.value || 0) + 1;
+    });
+  });
+  openModal('modal-clothing');
+}
+
+document.getElementById('btn-reset-clothing')?.addEventListener('click', () => {
+  const def = calcClothing(trip.nights, {});
+  document.querySelector('[data-clothing="underwear"]').value = def.underwear;
+  document.querySelector('[data-clothing="socks"]').value = def.socks;
+  document.querySelector('[data-clothing="outfits"]').value = def.outfits;
+  document.querySelector('[data-clothing="pajamas"]').value = def.pajamas;
+});
+
+document.getElementById('btn-save-clothing')?.addEventListener('click', () => {
+  const get = key => parseInt(document.querySelector(`[data-clothing="${key}"]`)?.value ?? 0);
+  const overrides = {
+    underwear: get('underwear'),
+    socks:     get('socks'),
+    outfits:   get('outfits'),
+    pajamas:   get('pajamas'),
+  };
+  trip.clothingOverrides = overrides;
+  // Sync clothing checklist items
+  trip.checklistItems.forEach(item => {
+    if (item.isClothing && item.clothingType) {
+      item.quantity = overrides[item.clothingType];
+    }
+  });
+  saveTrip(trip);
+  closeModal('modal-clothing');
+  renderChecklist();
+  renderInfo();
+  window.showToast?.('Clothing quantities updated');
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+renderHeader();
+renderChecklist();
+renderItinerary();
+renderInfo();
+</script>

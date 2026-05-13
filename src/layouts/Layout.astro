@@ -1,0 +1,77 @@
+---
+import '../styles/global.css';
+interface Props {
+  title?: string;
+  page?: 'home' | 'archive' | 'profile' | 'trip';
+}
+const { title = 'Trip Planner', page = '' } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TripPlan" />
+  <link rel="apple-touch-icon" href={`${base}icons/icon.svg`} />
+  <title>{title} – Trip Planner</title>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen" style="padding-bottom: calc(4rem + env(safe-area-inset-bottom))">
+
+  <!-- Toast -->
+  <div id="toast" aria-live="polite"
+       class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] pointer-events-none hidden">
+    <div id="toast-msg" class="bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg"></div>
+  </div>
+
+  <slot />
+
+  <!-- Bottom nav -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40"
+       style="padding-bottom: env(safe-area-inset-bottom)">
+    <div class="flex max-w-lg mx-auto">
+      <a href={base}
+         class={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors ${page === 'home' ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        <span>Trips</span>
+      </a>
+      <a href={`${base}archive/`}
+         class={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors ${page === 'archive' ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+        </svg>
+        <span>Archive</span>
+      </a>
+      <a href={`${base}profile/`}
+         class={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors ${page === 'profile' ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        <span>Profile</span>
+      </a>
+    </div>
+  </nav>
+
+</body>
+</html>
+
+<script>
+// Global toast helper
+window.showToast = function(msg, duration = 2500) {
+  const toast = document.getElementById('toast');
+  const msgEl = document.getElementById('toast-msg');
+  msgEl.textContent = msg;
+  toast.classList.remove('hidden');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => toast.classList.add('hidden'), duration);
+};
+</script>

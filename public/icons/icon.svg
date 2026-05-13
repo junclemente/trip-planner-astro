@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#4f46e5"/>
+  <!-- Suitcase body -->
+  <rect x="120" y="200" width="272" height="220" rx="24" fill="white" opacity="0.95"/>
+  <!-- Suitcase handle -->
+  <rect x="192" y="152" width="128" height="52" rx="20" fill="none" stroke="white" stroke-width="24" opacity="0.9"/>
+  <!-- Suitcase middle bar -->
+  <rect x="120" y="296" width="272" height="10" fill="#4f46e5" opacity="0.25"/>
+  <!-- Suitcase clasp -->
+  <rect x="236" y="284" width="40" height="34" rx="8" fill="#4f46e5" opacity="0.35"/>
+  <!-- Wheels -->
+  <circle cx="170" cy="432" r="22" fill="white" opacity="0.85"/>
+  <circle cx="342" cy="432" r="22" fill="white" opacity="0.85"/>
+</svg>

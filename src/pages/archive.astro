@@ -1,0 +1,132 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Archive" page="archive">
+
+  <header class="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
+    <div class="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+        </svg>
+        <h1 class="text-lg font-bold text-gray-900">Archive</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-import" class="btn-secondary text-sm py-1.5 px-3">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          Import
+        </button>
+        <input id="import-file" type="file" accept=".json" class="hidden" />
+        <button id="btn-export-all" class="btn-secondary text-sm py-1.5 px-3">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Export All
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-lg mx-auto px-4 py-4">
+    <div id="archive-container"></div>
+  </main>
+
+</Layout>
+
+<script>
+import { initSeedData, getTrips, exportAllTrips, importTripFromJSON } from '../scripts/store.js';
+import { formatDateRange, TEMPLATES } from '../scripts/templates.js';
+
+const BASE = import.meta.env.BASE_URL;
+initSeedData();
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+function renderArchive() {
+  const trips = getTrips().filter(t => t.status === 'archived');
+  const container = document.getElementById('archive-container');
+
+  if (!trips.length) {
+    container.innerHTML = `
+      <div class="flex flex-col items-center justify-center py-20 text-center">
+        <div class="text-5xl mb-4">📦</div>
+        <h2 class="text-xl font-bold text-gray-800 mb-2">No archived trips</h2>
+        <p class="text-gray-500 text-sm">Archived trips appear here as read-only snapshots.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = trips
+    .sort((a, b) => (b.archivedAt ?? '').localeCompare(a.archivedAt ?? ''))
+    .map(trip => {
+      const tmpl = TEMPLATES[trip.template]?.label ?? trip.template;
+      const total = trip.checklistItems?.length ?? 0;
+      const checked = trip.checklistItems?.filter(i => i.checked).length ?? 0;
+      const archivedDate = trip.archivedAt
+        ? new Date(trip.archivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '';
+      return `
+        <div class="card p-4 mb-3 cursor-pointer hover:shadow-md transition-shadow opacity-80 hover:opacity-100"
+             data-trip-id="${trip.id}">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex-1 min-w-0">
+              <h3 class="font-bold text-gray-700 truncate">${esc(trip.name)}</h3>
+              <p class="text-sm text-gray-500 mt-0.5">${esc(trip.destination)}</p>
+            </div>
+            <span class="badge bg-gray-100 text-gray-600 flex-shrink-0">Archived</span>
+          </div>
+          <p class="text-xs text-gray-400 mt-2">
+            📅 ${formatDateRange(trip.startDate, trip.endDate)}
+            · ${trip.nights} night${trip.nights !== 1 ? 's' : ''}
+            · ${esc(tmpl)}
+          </p>
+          <p class="text-xs text-gray-400 mt-0.5">
+            ✓ ${checked}/${total} items · Archived ${archivedDate}
+          </p>
+        </div>`;
+    }).join('');
+
+  container.querySelectorAll('[data-trip-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      window.location.href = `${BASE}trip/?id=${el.dataset.tripId}`;
+    });
+  });
+}
+
+document.getElementById('btn-export-all').addEventListener('click', () => {
+  const trips = getTrips();
+  if (!trips.length) { window.showToast?.('No trips to export'); return; }
+  exportAllTrips();
+  window.showToast?.('All trips exported');
+});
+
+document.getElementById('btn-import').addEventListener('click', () => {
+  document.getElementById('import-file').click();
+});
+
+document.getElementById('import-file').addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const trip = importTripFromJSON(ev.target.result);
+      renderArchive();
+      window.showToast?.(`"${trip.name}" imported!`);
+      setTimeout(() => { window.location.href = `${BASE}trip/?id=${trip.id}`; }, 800);
+    } catch (err) {
+      window.showToast?.(`Import failed: ${err.message}`);
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+renderArchive();
+</script>

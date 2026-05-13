@@ -1,0 +1,287 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Trips" page="home">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
+    <div class="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
+      <div class="flex items-center gap-2">
+        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <h1 class="text-lg font-bold text-gray-900">Trip Planner</h1>
+      </div>
+      <button id="btn-new-trip" class="btn-primary text-sm py-1.5 px-3">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        New Trip
+      </button>
+    </div>
+  </header>
+
+  <!-- Trip list -->
+  <main class="max-w-lg mx-auto px-4 py-4">
+    <div id="trips-container"></div>
+  </main>
+
+  <!-- ── New Trip Modal ── -->
+  <div id="modal-new-trip" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 class="text-lg font-bold">New Trip</h2>
+        <button id="close-new-trip" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+      </div>
+      <form id="form-new-trip" class="p-4 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Trip Name *</label>
+          <input id="nt-name" type="text" class="input" placeholder="e.g. BTS Vegas Concert" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Destination *</label>
+          <input id="nt-destination" type="text" class="input" placeholder="e.g. Las Vegas, NV" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Departing From</label>
+          <input id="nt-depart" type="text" class="input" placeholder="e.g. San Diego, CA" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+          <input id="nt-start" type="date" class="input" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Template</label>
+          <div class="grid grid-cols-2 gap-2" id="template-grid">
+            <label class="template-option flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+              <input type="radio" name="template" value="overnight" class="text-indigo-600" />
+              <div><div class="text-sm font-medium">Overnight</div><div class="text-xs text-gray-500">1 night</div></div>
+            </label>
+            <label class="template-option flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+              <input type="radio" name="template" value="weekend" class="text-indigo-600" />
+              <div><div class="text-sm font-medium">Weekend</div><div class="text-xs text-gray-500">2 nights</div></div>
+            </label>
+            <label class="template-option flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+              <input type="radio" name="template" value="short" class="text-indigo-600" />
+              <div><div class="text-sm font-medium">Short Trip</div><div class="text-xs text-gray-500">3 nights</div></div>
+            </label>
+            <label class="template-option flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+              <input type="radio" name="template" value="week" class="text-indigo-600" />
+              <div><div class="text-sm font-medium">Week Trip</div><div class="text-xs text-gray-500">7 nights</div></div>
+            </label>
+            <label class="template-option col-span-2 flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+              <input type="radio" name="template" value="custom" class="text-indigo-600" />
+              <div><div class="text-sm font-medium">Custom</div><div class="text-xs text-gray-500">Set nights manually</div></div>
+            </label>
+          </div>
+        </div>
+
+        <div id="custom-nights-row" class="hidden">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Number of Nights *</label>
+          <input id="nt-nights" type="number" min="1" max="365" class="input" placeholder="e.g. 5" />
+        </div>
+
+        <div id="nt-end-display" class="text-sm text-gray-500 hidden">
+          Returns: <span id="nt-end-date-text" class="font-medium text-gray-800"></span>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="cancel-new-trip" class="btn-secondary flex-1">Cancel</button>
+          <button type="submit" class="btn-primary flex-1">Create Trip</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</Layout>
+
+<script>
+import { initSeedData, getTrips, saveTrip, deleteTrip, getProfile } from '../scripts/store.js';
+import {
+  TEMPLATES, BADGE_STYLES, buildDays, buildInitialChecklist,
+  calcEndDate, formatDateRange,
+} from '../scripts/templates.js';
+
+const BASE = import.meta.env.BASE_URL;
+
+initSeedData();
+
+// ── Render ──────────────────────────────────────────────────────────────────
+
+function progressBar(checked, total) {
+  const pct = total === 0 ? 0 : Math.round((checked / total) * 100);
+  return `
+    <div class="mt-2">
+      <div class="flex justify-between text-xs text-gray-500 mb-1">
+        <span>${checked}/${total} items packed</span>
+        <span>${pct}%</span>
+      </div>
+      <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full bg-indigo-500 rounded-full transition-all" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+}
+
+function renderTrips() {
+  const trips = getTrips().filter(t => t.status === 'active');
+  const container = document.getElementById('trips-container');
+
+  if (trips.length === 0) {
+    container.innerHTML = `
+      <div class="flex flex-col items-center justify-center py-20 text-center">
+        <div class="text-5xl mb-4">✈️</div>
+        <h2 class="text-xl font-bold text-gray-800 mb-2">No active trips</h2>
+        <p class="text-gray-500 text-sm mb-6">Plan your next adventure!</p>
+        <button id="empty-new-trip" class="btn-primary">+ New Trip</button>
+      </div>`;
+    document.getElementById('empty-new-trip')?.addEventListener('click', openNewTripModal);
+    return;
+  }
+
+  container.innerHTML = trips.map(trip => {
+    const total = trip.checklistItems?.length ?? 0;
+    const checked = trip.checklistItems?.filter(i => i.checked).length ?? 0;
+    const tmpl = TEMPLATES[trip.template]?.label ?? trip.template;
+    return `
+      <div class="card p-4 mb-3 cursor-pointer hover:shadow-md transition-shadow"
+           data-trip-id="${trip.id}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <h3 class="font-bold text-gray-900 truncate">${esc(trip.name)}</h3>
+            <p class="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              ${esc(trip.destination)}
+            </p>
+          </div>
+          <span class="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full font-medium flex-shrink-0">
+            ${esc(tmpl)}
+          </span>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">
+          📅 ${formatDateRange(trip.startDate, trip.endDate)}
+          · ${trip.nights} night${trip.nights !== 1 ? 's' : ''}
+          ${trip.departFrom ? `· From ${esc(trip.departFrom)}` : ''}
+        </p>
+        ${progressBar(checked, total)}
+      </div>`;
+  }).join('');
+
+  container.querySelectorAll('[data-trip-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      window.location.href = `${BASE}trip/?id=${el.dataset.tripId}`;
+    });
+  });
+}
+
+// ── New trip modal ───────────────────────────────────────────────────────────
+
+function openNewTripModal() {
+  document.getElementById('modal-new-trip').classList.remove('hidden');
+  document.getElementById('nt-name').focus();
+  // Default to weekend
+  const radio = document.querySelector('input[name="template"][value="weekend"]');
+  if (radio) { radio.checked = true; updateEndDate(); }
+}
+
+function closeNewTripModal() {
+  document.getElementById('modal-new-trip').classList.add('hidden');
+  document.getElementById('form-new-trip').reset();
+  document.getElementById('custom-nights-row').classList.add('hidden');
+  document.getElementById('nt-end-display').classList.add('hidden');
+}
+
+function updateEndDate() {
+  const start = document.getElementById('nt-start').value;
+  const template = document.querySelector('input[name="template"]:checked')?.value;
+  const customNights = parseInt(document.getElementById('nt-nights').value);
+
+  let nights = null;
+  if (template && template !== 'custom') nights = TEMPLATES[template].nights;
+  else if (template === 'custom' && customNights > 0) nights = customNights;
+
+  if (start && nights !== null) {
+    const end = calcEndDate(start, nights);
+    const txt = new Date(`${end}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    document.getElementById('nt-end-date-text').textContent = txt;
+    document.getElementById('nt-end-display').classList.remove('hidden');
+  } else {
+    document.getElementById('nt-end-display').classList.add('hidden');
+  }
+}
+
+// ── Event wiring ─────────────────────────────────────────────────────────────
+
+document.getElementById('btn-new-trip').addEventListener('click', openNewTripModal);
+document.getElementById('close-new-trip').addEventListener('click', closeNewTripModal);
+document.getElementById('cancel-new-trip').addEventListener('click', closeNewTripModal);
+
+document.getElementById('modal-new-trip').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeNewTripModal();
+});
+
+document.querySelectorAll('input[name="template"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const isCustom = radio.value === 'custom';
+    document.getElementById('custom-nights-row').classList.toggle('hidden', !isCustom);
+    updateEndDate();
+  });
+});
+
+document.getElementById('nt-start').addEventListener('change', updateEndDate);
+document.getElementById('nt-nights').addEventListener('input', updateEndDate);
+
+document.getElementById('form-new-trip').addEventListener('submit', e => {
+  e.preventDefault();
+
+  const name = document.getElementById('nt-name').value.trim();
+  const destination = document.getElementById('nt-destination').value.trim();
+  const departFrom = document.getElementById('nt-depart').value.trim();
+  const startDate = document.getElementById('nt-start').value;
+  const template = document.querySelector('input[name="template"]:checked')?.value;
+
+  let nights = template && template !== 'custom' ? TEMPLATES[template].nights : null;
+  if (template === 'custom') nights = parseInt(document.getElementById('nt-nights').value);
+  if (!nights || nights < 1) { window.showToast?.('Please set number of nights'); return; }
+
+  const endDate = calcEndDate(startDate, nights);
+  const profile = getProfile();
+
+  // Build trip id and structure
+  const tripId = `trip-${Date.now().toString(36)}`;
+  const days = buildDays(tripId, startDate, nights);
+  const checklistItems = buildInitialChecklist(tripId, days, nights, profile.personalEssentials);
+
+  const trip = {
+    id: tripId, name, destination, departFrom, startDate, endDate, nights,
+    template: template ?? 'custom', status: 'active',
+    createdAt: new Date().toISOString(), archivedAt: null,
+    clothingOverrides: null, days, checklistItems, itineraryEvents: [],
+  };
+
+  saveTrip(trip);
+  closeNewTripModal();
+  renderTrips();
+  window.showToast?.(`"${name}" created!`);
+  setTimeout(() => { window.location.href = `${BASE}trip/?id=${tripId}`; }, 600);
+});
+
+// ── Keyboard close ────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeNewTripModal();
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderTrips();
+</script>
