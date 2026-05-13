@@ -36,11 +36,10 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-import { initSeedData, getTrips, exportAllTrips, importTripFromJSON } from '../scripts/store.js';
+import { getTrips, exportAllTrips, importTripFromJSON } from '../scripts/store.js';
 import { formatDateRange, TEMPLATES } from '../scripts/templates.js';
 
 const BASE = import.meta.env.BASE_URL;
-initSeedData();
 
 function esc(s) {
   const d = document.createElement('div');

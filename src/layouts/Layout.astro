@@ -2,9 +2,10 @@
 import '../styles/global.css';
 interface Props {
   title?: string;
-  page?: 'home' | 'archive' | 'profile' | 'trip';
+  page?: 'trips' | 'archive' | 'profile' | 'trip' | 'welcome';
+  showNav?: boolean;
 }
-const { title = 'Trip Planner', page = '' } = Astro.props;
+const { title = 'Trip Planner', page = '', showNav = true } = Astro.props;
 const base = import.meta.env.BASE_URL;
 ---
 <!doctype html>
@@ -20,7 +21,7 @@ const base = import.meta.env.BASE_URL;
   <link rel="apple-touch-icon" href={`${base}icons/icon.svg`} />
   <title>{title} – Trip Planner</title>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen" style="padding-bottom: calc(4rem + env(safe-area-inset-bottom))">
+<body class={`bg-gray-50 text-gray-900 min-h-screen ${showNav ? 'pb-[calc(4rem+env(safe-area-inset-bottom))]' : ''}`}>
 
   <!-- Toast -->
   <div id="toast" aria-live="polite"
@@ -31,11 +32,12 @@ const base = import.meta.env.BASE_URL;
   <slot />
 
   <!-- Bottom nav -->
+  {showNav && (
   <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40"
        style="padding-bottom: env(safe-area-inset-bottom)">
     <div class="flex max-w-lg mx-auto">
-      <a href={base}
-         class={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors ${page === 'home' ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+      <a href={`${base}trips/`}
+         class={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors ${page === 'trips' ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round"
                 d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
@@ -60,6 +62,7 @@ const base = import.meta.env.BASE_URL;
       </a>
     </div>
   </nav>
+  )}
 
 </body>
 </html>
