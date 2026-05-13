@@ -52,17 +52,15 @@ import Layout from '../layouts/Layout.astro';
           <select id="item-day" class="input"></select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Badge</label>
-          <select id="item-badge" class="input">
-            <option value="">None</option>
-            <option value="essential">Essential</option>
-            <option value="clothing">Clothing</option>
-            <option value="flight">Flight</option>
-            <option value="medical">Medical</option>
-            <option value="concert">Concert</option>
-            <option value="hotel">Hotel</option>
-            <option value="activity">Activity</option>
-            <option value="personal">Personal</option>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select id="item-category" class="input">
+            <option value="">— None —</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+          <select id="item-priority" class="input">
+            <option value="">— None —</option>
           </select>
         </div>
         <div>
@@ -149,20 +147,31 @@ import Layout from '../layouts/Layout.astro';
 
 <script>
 import {
-  genId, getTrip, saveTrip, deleteTrip, archiveTrip, unarchiveTrip, exportTrip,
+  genId, getTrip, saveTrip, deleteTrip, archiveTrip, unarchiveTrip, exportTrip, getProfile,
 } from '../scripts/store.js';
-import { BADGE_STYLES, badgeClasses, calcClothing, formatDate, formatDateRange, TEMPLATES } from '../scripts/templates.js';
+import {
+  getAllCategories, getAllPriorities, getCategoryColor, getPriorityColor,
+  getCategoryLabel, getPriorityLabel, migrateChecklistItems,
+  calcClothing, formatDate, formatDateRange, TEMPLATES,
+} from '../scripts/templates.js';
 
 const BASE = import.meta.env.BASE_URL;
 const params = new URLSearchParams(window.location.search);
 const tripId = params.get('id');
 
-// Stop execution and redirect if trip not found
 if (!tripId) { location.replace(BASE); throw 0; }
 let trip = getTrip(tripId);
 if (!trip) { location.replace(BASE); throw 0; }
 
+// Migrate old badge→category/priority items and persist immediately
+if (migrateChecklistItems(trip.checklistItems ?? [])) saveTrip(trip);
+
+let profile = getProfile();
 const readonly = trip.status === 'archived';
+
+// Filter state — resets when leaving checklist tab
+let activeCategory = null;
+let activePriority = null;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -174,6 +183,7 @@ function esc(s) {
 
 function reload() {
   trip = getTrip(tripId);
+  profile = getProfile();
   renderHeader();
   renderChecklist();
   renderItinerary();
@@ -188,6 +198,11 @@ let currentTab = 'checklist';
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
+    if (btn.dataset.tab !== 'checklist') {
+      // Reset filters when leaving checklist
+      activeCategory = null;
+      activePriority = null;
+    }
     currentTab = btn.dataset.tab;
     tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
     tabPanels.forEach(p => p.classList.toggle('hidden', p.id !== `tab-${currentTab}`));
@@ -271,6 +286,64 @@ function renderHeader() {
 
 // ── Checklist ────────────────────────────────────────────────────────────────
 
+function buildFilterBar(items) {
+  const allCats = getAllCategories(profile.customCategories);
+  const allPris = getAllPriorities(profile.customPriorities);
+
+  // Count items per category/priority (unfiltered counts)
+  const catCounts = {};
+  const priCounts = {};
+  items.forEach(item => {
+    if (item.category) catCounts[item.category] = (catCounts[item.category] ?? 0) + 1;
+    if (item.priority) priCounts[item.priority] = (priCounts[item.priority] ?? 0) + 1;
+  });
+
+  const catIds = Object.keys(catCounts);
+  const priIds = Object.keys(priCounts);
+  if (catIds.length === 0 && priIds.length === 0) return '';
+
+  function catBtn(id) {
+    const tag = allCats.find(c => c.id === id);
+    if (!tag) return '';
+    const isActive = activeCategory === id;
+    const cls = isActive ? tag.color + ' ring-1 ring-inset ring-current' : 'bg-gray-100 text-gray-600';
+    return `<button class="filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${cls}"
+                    data-cat="${esc(id)}">${esc(tag.label)} <span class="font-normal">${catCounts[id]}</span></button>`;
+  }
+
+  function priBtn(id) {
+    const tag = allPris.find(p => p.id === id);
+    if (!tag) return '';
+    const isActive = activePriority === id;
+    const cls = isActive ? tag.color + ' ring-1 ring-inset ring-current' : 'bg-gray-100 text-gray-600';
+    return `<button class="filter-pri text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${cls}"
+                    data-pri="${esc(id)}">${esc(tag.label)} <span class="font-normal">${priCounts[id]}</span></button>`;
+  }
+
+  const hasFilter = activeCategory !== null || activePriority !== null;
+  const filteredCount = items.filter(item =>
+    (activeCategory === null || item.category === activeCategory) &&
+    (activePriority === null || item.priority === activePriority)
+  ).length;
+
+  return `
+    <div class="px-4 pb-2 space-y-1.5">
+      ${catIds.length > 0 ? `
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
+        <button class="filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${activeCategory === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}"
+                data-cat="">All</button>
+        ${catIds.map(catBtn).join('')}
+      </div>` : ''}
+      ${priIds.length > 0 ? `
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
+        <button class="filter-pri text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${activePriority === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}"
+                data-pri="">All</button>
+        ${priIds.map(priBtn).join('')}
+      </div>` : ''}
+      ${hasFilter ? `<p class="text-xs text-indigo-600 font-medium">${filteredCount} item${filteredCount !== 1 ? 's' : ''} shown</p>` : ''}
+    </div>`;
+}
+
 function renderChecklist() {
   const panel = document.getElementById('tab-checklist');
   const items = trip.checklistItems ?? [];
@@ -278,21 +351,30 @@ function renderChecklist() {
   const checked = items.filter(i => i.checked).length;
   const pct = total === 0 ? 0 : Math.round((checked / total) * 100);
 
+  // Apply filters
+  const visibleItems = items.filter(item =>
+    (activeCategory === null || item.category === activeCategory) &&
+    (activePriority === null || item.priority === activePriority)
+  );
+
   const byDay = {};
   trip.days.forEach(d => (byDay[d.id] = []));
-  items.forEach(item => { if (byDay[item.dayId]) byDay[item.dayId].push(item); });
+  visibleItems.forEach(item => { if (byDay[item.dayId]) byDay[item.dayId].push(item); });
 
   panel.innerHTML = `
-    <div class="sticky top-[97px] bg-white border-b border-gray-100 px-4 py-2 z-20 flex items-center justify-between gap-4">
-      <div class="flex-1">
-        <div class="flex justify-between text-xs text-gray-500 mb-1">
-          <span>${checked}/${total} packed</span><span>${pct}%</span>
+    <div class="sticky top-[97px] bg-white border-b border-gray-100 z-20">
+      <div class="px-4 py-2 flex items-center justify-between gap-4">
+        <div class="flex-1">
+          <div class="flex justify-between text-xs text-gray-500 mb-1">
+            <span>${checked}/${total} packed</span><span>${pct}%</span>
+          </div>
+          <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" style="width:${pct}%"></div>
+          </div>
         </div>
-        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" style="width:${pct}%"></div>
-        </div>
+        ${!readonly ? `<button id="btn-add-item-top" class="btn-primary text-xs py-1.5 px-3 flex-shrink-0">+ Add Item</button>` : ''}
       </div>
-      ${!readonly ? `<button id="btn-add-item-top" class="btn-primary text-xs py-1.5 px-3 flex-shrink-0">+ Add Item</button>` : ''}
+      ${total > 0 ? buildFilterBar(items) : ''}
     </div>
 
     ${trip.days.map(day => {
@@ -309,7 +391,7 @@ function renderChecklist() {
           </div>
           <ul>
             ${dayItems.map(item => renderItemRow(item)).join('')}
-            ${dayItems.length === 0 ? `<li class="px-4 py-3 text-xs text-gray-400 italic">No items</li>` : ''}
+            ${dayItems.length === 0 ? `<li class="px-4 py-3 text-xs text-gray-400 italic">No items${activeCategory || activePriority ? ' match the active filter' : ''}</li>` : ''}
           </ul>
           ${!readonly ? `
           <button class="add-to-day w-full py-2 text-xs text-gray-400 hover:text-indigo-600 transition-colors border-b border-dashed border-gray-100"
@@ -331,11 +413,27 @@ function renderChecklist() {
   panel.querySelectorAll('[data-del-item]').forEach(btn => {
     btn.addEventListener('click', () => deleteItem(btn.dataset.delItem));
   });
+
+  // Filter events
+  panel.querySelectorAll('.filter-cat').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeCategory = btn.dataset.cat || null;
+      renderChecklist();
+    });
+  });
+  panel.querySelectorAll('.filter-pri').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activePriority = btn.dataset.pri || null;
+      renderChecklist();
+    });
+  });
 }
 
 function renderItemRow(item) {
-  const badge = item.badge
-    ? `<span class="badge ${badgeClasses(item.badge)} ml-1">${esc(item.badge)}</span>` : '';
+  const catTag = item.category
+    ? `<span class="badge ${getCategoryColor(item.category, profile.customCategories)} ml-1">${esc(getCategoryLabel(item.category, profile.customCategories))}</span>` : '';
+  const priTag = item.priority
+    ? `<span class="badge ${getPriorityColor(item.priority, profile.customPriorities)} ml-1">${esc(getPriorityLabel(item.priority, profile.customPriorities))}</span>` : '';
   const qty = item.quantity != null ? `<span class="text-xs text-gray-400 ml-1">×${item.quantity}</span>` : '';
   const editBtn = !readonly ? `
     <button data-edit-item="${esc(item.id)}"
@@ -357,7 +455,8 @@ function renderItemRow(item) {
       </div>`}
       <div class="flex-1 min-w-0">
         <span class="text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}">${esc(item.text)}</span>
-        <span>${badge}${qty}</span>
+        <span>${qty}</span>
+        ${catTag || priTag ? `<div class="flex flex-wrap gap-0.5 mt-0.5">${catTag}${priTag}</div>` : ''}
       </div>
       <div class="flex items-center gap-0.5">${editBtn}</div>
     </li>`;
@@ -368,7 +467,6 @@ function toggleItem(itemId) {
   if (!item) return;
   item.checked = !item.checked;
   saveTrip(trip);
-  // Update only the specific row instead of full re-render for performance
   reload();
 }
 
@@ -381,13 +479,25 @@ function deleteItem(itemId) {
 
 // ── Item Modal ───────────────────────────────────────────────────────────────
 
+function populateTagSelects(selectedCategory = null, selectedPriority = null) {
+  const allCats = getAllCategories(profile.customCategories);
+  const allPris = getAllPriorities(profile.customPriorities);
+
+  const catSel = document.getElementById('item-category');
+  catSel.innerHTML = `<option value="">— None —</option>` +
+    allCats.map(c => `<option value="${esc(c.id)}" ${c.id === selectedCategory ? 'selected' : ''}>${esc(c.label)}</option>`).join('');
+
+  const priSel = document.getElementById('item-priority');
+  priSel.innerHTML = `<option value="">— None —</option>` +
+    allPris.map(p => `<option value="${esc(p.id)}" ${p.id === selectedPriority ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
+}
+
 function openItemModal(preselectedDayId = null, editItemId = null) {
   const form = document.getElementById('form-item');
   form.reset();
   document.getElementById('item-edit-id').value = '';
   document.getElementById('modal-item-title').textContent = editItemId ? 'Edit Item' : 'Add Item';
 
-  // Populate day select
   const daySelect = document.getElementById('item-day');
   daySelect.innerHTML = trip.days.map(d =>
     `<option value="${esc(d.id)}" ${d.id === preselectedDayId ? 'selected' : ''}>${esc(d.label)}</option>`
@@ -399,10 +509,13 @@ function openItemModal(preselectedDayId = null, editItemId = null) {
       document.getElementById('item-edit-id').value = item.id;
       document.getElementById('item-text').value = item.text;
       document.getElementById('item-day').value = item.dayId;
-      document.getElementById('item-badge').value = item.badge ?? '';
       document.getElementById('item-qty').value = item.quantity ?? '';
+      populateTagSelects(item.category, item.priority);
     }
+  } else {
+    populateTagSelects();
   }
+
   openModal('modal-item');
   setTimeout(() => document.getElementById('item-text').focus(), 50);
 }
@@ -412,15 +525,16 @@ document.getElementById('form-item').addEventListener('submit', e => {
   const editId = document.getElementById('item-edit-id').value;
   const text = document.getElementById('item-text').value.trim();
   const dayId = document.getElementById('item-day').value;
-  const badge = document.getElementById('item-badge').value || null;
+  const category = document.getElementById('item-category').value || null;
+  const priority = document.getElementById('item-priority').value || null;
   const qtyVal = document.getElementById('item-qty').value;
   const quantity = qtyVal ? parseInt(qtyVal) : null;
 
   if (editId) {
     const item = trip.checklistItems.find(i => i.id === editId);
-    if (item) Object.assign(item, { text, dayId, badge, quantity });
+    if (item) Object.assign(item, { text, dayId, category, priority, quantity });
   } else {
-    trip.checklistItems.push({ id: genId(), tripId, dayId, text, badge, checked: false, quantity });
+    trip.checklistItems.push({ id: genId(), tripId, dayId, text, category, priority, checked: false, quantity });
   }
   saveTrip(trip);
   closeModal('modal-item');
@@ -706,7 +820,6 @@ document.getElementById('btn-save-clothing')?.addEventListener('click', () => {
     pajamas:   get('pajamas'),
   };
   trip.clothingOverrides = overrides;
-  // Sync clothing checklist items
   trip.checklistItems.forEach(item => {
     if (item.isClothing && item.clothingType) {
       item.quantity = overrides[item.clothingType];

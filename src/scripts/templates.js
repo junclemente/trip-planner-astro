@@ -8,26 +8,96 @@ export const TEMPLATES = {
   custom:    { label: 'Custom',     nights: null },
 };
 
-export const ALWAYS_ESSENTIALS = [
-  'Toothbrush', 'Toothpaste', 'Deodorant', 'Chapstick',
-  'Phone + Charger', 'Wallet + ID',
+export const RECOMMENDED_DEFAULTS = [
+  { text: 'Toothbrush',      suggestedCategory: 'toiletries' },
+  { text: 'Toothpaste',      suggestedCategory: 'toiletries' },
+  { text: 'Deodorant',       suggestedCategory: 'toiletries' },
+  { text: 'Chapstick',       suggestedCategory: 'toiletries' },
+  { text: 'Phone + Charger', suggestedCategory: null },
+  { text: 'Wallet + ID',     suggestedCategory: null },
 ];
 
-export const BADGES = ['essential', 'clothing', 'flight', 'medical', 'concert', 'hotel', 'activity', 'personal'];
+export const DEFAULT_CATEGORIES = [
+  { id: 'toiletries', label: 'Toiletries', color: 'bg-teal-100 text-teal-800' },
+  { id: 'clothing',   label: 'Clothing',   color: 'bg-orange-100 text-orange-800' },
+  { id: 'flight',     label: 'Flight',     color: 'bg-blue-100 text-blue-800' },
+  { id: 'concert',    label: 'Concert',    color: 'bg-purple-100 text-purple-800' },
+  { id: 'hotel',      label: 'Hotel',      color: 'bg-yellow-100 text-yellow-800' },
+  { id: 'activity',   label: 'Activity',   color: 'bg-green-100 text-green-800' },
+];
 
-export const BADGE_STYLES = {
-  essential: 'bg-gray-100 text-gray-700',
-  clothing:  'bg-orange-100 text-orange-800',
-  flight:    'bg-blue-100 text-blue-800',
-  medical:   'bg-red-100 text-red-800',
-  concert:   'bg-purple-100 text-purple-800',
-  hotel:     'bg-yellow-100 text-yellow-800',
-  activity:  'bg-teal-100 text-teal-800',
-  personal:  'bg-green-100 text-green-800',
-};
+export const DEFAULT_PRIORITIES = [
+  { id: 'essential',   label: 'Essential',    color: 'bg-red-100 text-red-800' },
+  { id: 'optional',    label: 'Optional',     color: 'bg-gray-100 text-gray-600' },
+  { id: 'dont-forget', label: "Don't Forget", color: 'bg-amber-100 text-amber-800' },
+];
 
-export function badgeClasses(badge) {
-  return BADGE_STYLES[badge] ?? 'bg-gray-100 text-gray-600';
+// Custom colors available for user-created categories and priorities.
+// The `cls` string must appear here in full so Tailwind detects them.
+export const CUSTOM_COLORS = [
+  { id: 'rose',    cls: 'bg-rose-100 text-rose-800',       dot: '#fb7185' },
+  { id: 'orange',  cls: 'bg-orange-100 text-orange-800',   dot: '#fb923c' },
+  { id: 'amber',   cls: 'bg-amber-100 text-amber-800',     dot: '#fbbf24' },
+  { id: 'lime',    cls: 'bg-lime-100 text-lime-800',       dot: '#a3e635' },
+  { id: 'sky',     cls: 'bg-sky-100 text-sky-800',         dot: '#38bdf8' },
+  { id: 'violet',  cls: 'bg-violet-100 text-violet-800',   dot: '#a78bfa' },
+  { id: 'fuchsia', cls: 'bg-fuchsia-100 text-fuchsia-800', dot: '#e879f9' },
+  { id: 'slate',   cls: 'bg-slate-100 text-slate-800',     dot: '#94a3b8' },
+];
+
+// Returns all categories (built-in + custom) with a resolved `color` class string.
+export function getAllCategories(customCategories = []) {
+  const customs = customCategories.map(c => ({
+    ...c,
+    color: CUSTOM_COLORS.find(cc => cc.id === c.colorId)?.cls ?? 'bg-gray-100 text-gray-600',
+  }));
+  return [...DEFAULT_CATEGORIES, ...customs];
+}
+
+// Returns all priorities (built-in + custom) with a resolved `color` class string.
+export function getAllPriorities(customPriorities = []) {
+  const customs = customPriorities.map(p => ({
+    ...p,
+    color: CUSTOM_COLORS.find(cc => cc.id === p.colorId)?.cls ?? 'bg-gray-100 text-gray-600',
+  }));
+  return [...DEFAULT_PRIORITIES, ...customs];
+}
+
+export function getCategoryColor(id, customCategories = []) {
+  return getAllCategories(customCategories).find(c => c.id === id)?.color ?? 'bg-gray-100 text-gray-600';
+}
+
+export function getPriorityColor(id, customPriorities = []) {
+  return getAllPriorities(customPriorities).find(p => p.id === id)?.color ?? 'bg-gray-100 text-gray-600';
+}
+
+export function getCategoryLabel(id, customCategories = []) {
+  return getAllCategories(customCategories).find(c => c.id === id)?.label ?? id;
+}
+
+export function getPriorityLabel(id, customPriorities = []) {
+  return getAllPriorities(customPriorities).find(p => p.id === id)?.label ?? id;
+}
+
+// Migrates items that still use the old single `badge` field to the new
+// `category` + `priority` two-tag system. Returns true if any items changed.
+export function migrateChecklistItems(items) {
+  const BADGE_TO_CATEGORY = {
+    clothing: 'clothing', flight: 'flight', concert: 'concert',
+    hotel: 'hotel', activity: 'activity',
+  };
+  const BADGE_TO_PRIORITY = { essential: 'essential' };
+
+  let changed = false;
+  for (const item of items) {
+    if (!('category' in item) && !('priority' in item)) {
+      item.category = BADGE_TO_CATEGORY[item.badge] ?? null;
+      item.priority = BADGE_TO_PRIORITY[item.badge] ?? null;
+      delete item.badge;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 export function calcClothing(nights, overrides = {}) {
@@ -63,11 +133,6 @@ export function buildInitialChecklist(tripId, days, nights, profileEssentials = 
   const clothing = calcClothing(nights, overrides ?? {});
   const items = [];
 
-  // Always-essentials on day 1
-  for (const text of ALWAYS_ESSENTIALS) {
-    items.push({ id: genId(), tripId, dayId: firstDayId, text, badge: 'essential', checked: false, quantity: null });
-  }
-
   // Clothing on day 1
   const clothingItems = [
     { text: 'Underwear', type: 'underwear', qty: clothing.underwear },
@@ -78,7 +143,8 @@ export function buildInitialChecklist(tripId, days, nights, profileEssentials = 
   for (const c of clothingItems) {
     items.push({
       id: genId(), tripId, dayId: firstDayId,
-      text: c.text, badge: 'clothing', checked: false, quantity: c.qty,
+      text: c.text, category: 'clothing', priority: null,
+      checked: false, quantity: c.qty,
       isClothing: true, clothingType: c.type,
     });
   }
@@ -87,7 +153,8 @@ export function buildInitialChecklist(tripId, days, nights, profileEssentials = 
   for (const pe of profileEssentials) {
     items.push({
       id: genId(), tripId, dayId: firstDayId,
-      text: pe.text, badge: 'personal', checked: false, quantity: null,
+      text: pe.text, category: null, priority: null,
+      checked: false, quantity: null,
     });
   }
 

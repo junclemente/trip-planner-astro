@@ -52,9 +52,13 @@ export function unarchiveTrip(id) {
 
 export function getProfile() {
   try {
-    return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null')
-      ?? { personalEssentials: [] };
-  } catch { return { personalEssentials: [] }; }
+    const stored = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
+    const defaults = { personalEssentials: [], customCategories: [], customPriorities: [] };
+    if (!stored) return defaults;
+    return { ...defaults, ...stored };
+  } catch {
+    return { personalEssentials: [], customCategories: [], customPriorities: [] };
+  }
 }
 
 export function saveProfile(profile) {

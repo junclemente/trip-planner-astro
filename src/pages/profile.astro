@@ -14,31 +14,53 @@ import Layout from '../layouts/Layout.astro';
 
   <main class="max-w-lg mx-auto px-4 py-4 space-y-4">
 
+    <!-- Personal Essentials -->
     <div class="card p-4">
       <div class="flex items-start justify-between mb-3">
         <div>
           <h2 class="font-semibold text-gray-900">Personal Essentials</h2>
-          <p class="text-xs text-gray-500 mt-0.5">Auto-included in every new trip</p>
+          <p class="text-xs text-gray-500 mt-0.5">Auto-added to every new trip</p>
         </div>
         <button id="btn-add-essential" class="btn-primary text-sm py-1.5 px-3">+ Add</button>
       </div>
-
       <ul id="essentials-list" class="divide-y divide-gray-100"></ul>
       <p id="no-essentials" class="text-sm text-gray-400 italic py-2 hidden">
         No personal essentials yet. Add things like contact lenses, CPAP, mouth guard…
       </p>
     </div>
 
-    <div class="card p-4 bg-indigo-50 border-indigo-100">
-      <h3 class="font-semibold text-indigo-800 text-sm mb-1">Always-included defaults</h3>
-      <p class="text-xs text-indigo-600 mb-2">These appear in every trip automatically:</p>
-      <div class="flex flex-wrap gap-1.5">
-        <span class="badge bg-gray-100 text-gray-700">Toothbrush</span>
-        <span class="badge bg-gray-100 text-gray-700">Toothpaste</span>
-        <span class="badge bg-gray-100 text-gray-700">Deodorant</span>
-        <span class="badge bg-gray-100 text-gray-700">Chapstick</span>
-        <span class="badge bg-gray-100 text-gray-700">Phone + Charger</span>
-        <span class="badge bg-gray-100 text-gray-700">Wallet + ID</span>
+    <!-- Recommended Defaults -->
+    <div class="card p-4">
+      <h3 class="font-semibold text-gray-900 mb-1">Recommended Defaults</h3>
+      <p class="text-xs text-gray-500 mb-3">Tap + to add to your personal essentials:</p>
+      <div id="recommended-defaults" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Categories -->
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-gray-900">Categories</h3>
+        <button id="btn-add-category" class="btn-primary text-sm py-1.5 px-3">+ Add</button>
+      </div>
+      <p class="text-xs text-gray-500 mb-2">Built-in</p>
+      <div id="builtin-categories" class="flex flex-wrap gap-1.5 mb-3"></div>
+      <div id="custom-categories-section" class="hidden">
+        <p class="text-xs text-gray-500 mb-2">Custom</p>
+        <ul id="custom-categories-list" class="space-y-1.5"></ul>
+      </div>
+    </div>
+
+    <!-- Priorities -->
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-gray-900">Priorities</h3>
+        <button id="btn-add-priority" class="btn-primary text-sm py-1.5 px-3">+ Add</button>
+      </div>
+      <p class="text-xs text-gray-500 mb-2">Built-in</p>
+      <div id="builtin-priorities" class="flex flex-wrap gap-1.5 mb-3"></div>
+      <div id="custom-priorities-section" class="hidden">
+        <p class="text-xs text-gray-500 mb-2">Custom</p>
+        <ul id="custom-priorities-list" class="space-y-1.5"></ul>
       </div>
     </div>
 
@@ -66,10 +88,56 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </div>
 
+  <!-- Add/Edit Tag Modal (shared for categories and priorities) -->
+  <div id="modal-tag" class="modal-overlay hidden">
+    <div class="modal-box max-w-sm">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-tag-title" class="text-lg font-bold">Add Category</h2>
+        <button id="close-tag" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+      </div>
+      <form id="form-tag" class="p-4 space-y-4">
+        <input type="hidden" id="tag-edit-id" />
+        <input type="hidden" id="tag-type" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Label *</label>
+          <input id="tag-label" type="text" class="input" placeholder="e.g. Electronics" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Color</label>
+          <div id="tag-color-swatches" class="flex flex-wrap gap-2"></div>
+          <input type="hidden" id="tag-color" value="slate" />
+        </div>
+        <div class="flex gap-3">
+          <button type="button" id="cancel-tag" class="btn-secondary flex-1">Cancel</button>
+          <button type="submit" class="btn-primary flex-1">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm Modal -->
+  <div id="modal-confirm" class="modal-overlay hidden">
+    <div class="modal-box max-w-sm">
+      <div class="p-6 text-center">
+        <div class="text-4xl mb-3" id="confirm-icon">⚠️</div>
+        <h3 id="confirm-title" class="text-lg font-bold mb-2">Are you sure?</h3>
+        <p id="confirm-msg" class="text-sm text-gray-600 mb-6"></p>
+        <div class="flex gap-3">
+          <button id="confirm-cancel" class="btn-secondary flex-1">Cancel</button>
+          <button id="confirm-ok" class="btn-danger flex-1">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </Layout>
 
 <script>
-import { getProfile, saveProfile } from '../scripts/store.js';
+import { getProfile, saveProfile, genId } from '../scripts/store.js';
+import {
+  RECOMMENDED_DEFAULTS, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, CUSTOM_COLORS,
+  getAllCategories, getAllPriorities,
+} from '../scripts/templates.js';
 
 function esc(s) {
   const d = document.createElement('div');
@@ -77,7 +145,34 @@ function esc(s) {
   return d.innerHTML;
 }
 
-function renderList() {
+// ── Confirm ───────────────────────────────────────────────────────────────────
+
+function confirmAction(icon, title, msg, okLabel, onOk) {
+  document.getElementById('confirm-icon').textContent = icon;
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  const okBtn = document.getElementById('confirm-ok');
+  okBtn.textContent = okLabel;
+  document.getElementById('modal-confirm').classList.remove('hidden');
+  const handler = () => {
+    document.getElementById('modal-confirm').classList.add('hidden');
+    onOk();
+    okBtn.removeEventListener('click', handler);
+  };
+  okBtn.addEventListener('click', handler);
+  document.getElementById('confirm-cancel').onclick = () => {
+    document.getElementById('modal-confirm').classList.add('hidden');
+    okBtn.removeEventListener('click', handler);
+  };
+}
+
+document.getElementById('modal-confirm').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+});
+
+// ── Personal Essentials ───────────────────────────────────────────────────────
+
+function renderEssentials() {
   const profile = getProfile();
   const list = document.getElementById('essentials-list');
   const empty = document.getElementById('no-essentials');
@@ -85,43 +180,78 @@ function renderList() {
   if (!profile.personalEssentials.length) {
     list.innerHTML = '';
     empty.classList.remove('hidden');
-    return;
-  }
-  empty.classList.add('hidden');
+  } else {
+    empty.classList.add('hidden');
+    list.innerHTML = profile.personalEssentials.map(item => `
+      <li class="flex items-center gap-3 py-2.5 group">
+        <span class="flex-1 text-sm text-gray-800">${esc(item.text)}</span>
+        <button class="edit-essential opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-1 text-xs"
+                data-id="${esc(item.id)}" title="Edit">✏️</button>
+        <button class="del-essential opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-lg leading-none p-1"
+                data-id="${esc(item.id)}" title="Remove">×</button>
+      </li>`).join('');
 
-  list.innerHTML = profile.personalEssentials.map(item => `
-    <li class="flex items-center gap-3 py-2.5 group">
-      <span class="flex-1 text-sm text-gray-800">${esc(item.text)}</span>
-      <button class="edit-essential opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-1 text-xs"
-              data-id="${esc(item.id)}" title="Edit">✏️</button>
-      <button class="del-essential opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-lg leading-none p-1"
-              data-id="${esc(item.id)}" title="Remove">×</button>
-    </li>`).join('');
-
-  list.querySelectorAll('.del-essential').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const profile = getProfile();
-      profile.personalEssentials = profile.personalEssentials.filter(i => i.id !== btn.dataset.id);
-      saveProfile(profile);
-      renderList();
-      window.showToast?.('Removed');
+    list.querySelectorAll('.del-essential').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = getProfile();
+        const item = p.personalEssentials.find(i => i.id === btn.dataset.id);
+        confirmAction('🗑️', 'Remove essential?', `Remove "${item?.text ?? ''}"?`, 'Remove', () => {
+          p.personalEssentials = p.personalEssentials.filter(i => i.id !== btn.dataset.id);
+          saveProfile(p);
+          renderEssentials();
+          renderRecommendedDefaults();
+          window.showToast?.('Removed');
+        });
+      });
     });
-  });
 
-  list.querySelectorAll('.edit-essential').forEach(btn => {
-    btn.addEventListener('click', () => openModal(btn.dataset.id));
+    list.querySelectorAll('.edit-essential').forEach(btn => {
+      btn.addEventListener('click', () => openEssentialModal(btn.dataset.id));
+    });
+  }
+
+  renderRecommendedDefaults();
+}
+
+function renderRecommendedDefaults() {
+  const profile = getProfile();
+  const existingTexts = new Set(profile.personalEssentials.map(i => i.text.toLowerCase()));
+  const container = document.getElementById('recommended-defaults');
+
+  container.innerHTML = RECOMMENDED_DEFAULTS.map(({ text }) => {
+    const already = existingTexts.has(text.toLowerCase());
+    return `
+      <button class="add-recommended flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border transition-colors
+                     ${already
+                       ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-default'
+                       : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}"
+              data-text="${esc(text)}" ${already ? 'disabled' : ''}>
+        ${already
+          ? `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`
+          : `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>`}
+        ${esc(text)}
+      </button>`;
+  }).join('');
+
+  container.querySelectorAll('.add-recommended:not([disabled])').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = getProfile();
+      p.personalEssentials.push({ id: `pe-${Date.now().toString(36)}`, text: btn.dataset.text });
+      saveProfile(p);
+      renderEssentials();
+      window.showToast?.(`Added "${btn.dataset.text}"`);
+    });
   });
 }
 
-function openModal(editId = null) {
+function openEssentialModal(editId = null) {
   const form = document.getElementById('form-essential');
   form.reset();
   document.getElementById('essential-edit-id').value = '';
   document.getElementById('modal-essential-title').textContent = editId ? 'Edit Essential' : 'Add Essential';
 
   if (editId) {
-    const profile = getProfile();
-    const item = profile.personalEssentials.find(i => i.id === editId);
+    const item = getProfile().personalEssentials.find(i => i.id === editId);
     if (item) {
       document.getElementById('essential-edit-id').value = item.id;
       document.getElementById('essential-text').value = item.text;
@@ -131,17 +261,16 @@ function openModal(editId = null) {
   setTimeout(() => document.getElementById('essential-text').focus(), 50);
 }
 
-function closeModal() {
+document.getElementById('btn-add-essential').addEventListener('click', () => openEssentialModal());
+document.getElementById('close-essential').addEventListener('click', () => {
   document.getElementById('modal-essential').classList.add('hidden');
-}
-
-document.getElementById('btn-add-essential').addEventListener('click', () => openModal());
-document.getElementById('close-essential').addEventListener('click', closeModal);
-document.getElementById('cancel-essential').addEventListener('click', closeModal);
-document.getElementById('modal-essential').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeModal();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('cancel-essential').addEventListener('click', () => {
+  document.getElementById('modal-essential').classList.add('hidden');
+});
+document.getElementById('modal-essential').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+});
 
 document.getElementById('form-essential').addEventListener('submit', e => {
   e.preventDefault();
@@ -153,14 +282,190 @@ document.getElementById('form-essential').addEventListener('submit', e => {
     const item = profile.personalEssentials.find(i => i.id === editId);
     if (item) item.text = text;
   } else {
-    const id = `pe-${Date.now().toString(36)}`;
-    profile.personalEssentials.push({ id, text });
+    profile.personalEssentials.push({ id: `pe-${Date.now().toString(36)}`, text });
   }
   saveProfile(profile);
-  closeModal();
-  renderList();
+  document.getElementById('modal-essential').classList.add('hidden');
+  renderEssentials();
   window.showToast?.(editId ? 'Updated' : 'Added to personal essentials');
 });
 
-renderList();
+// ── Categories & Priorities ───────────────────────────────────────────────────
+
+function renderBuiltins() {
+  document.getElementById('builtin-categories').innerHTML =
+    DEFAULT_CATEGORIES.map(c =>
+      `<span class="badge ${c.color}">${esc(c.label)}</span>`
+    ).join('');
+
+  document.getElementById('builtin-priorities').innerHTML =
+    DEFAULT_PRIORITIES.map(p =>
+      `<span class="badge ${p.color}">${esc(p.label)}</span>`
+    ).join('');
+}
+
+function tagColor(tag) {
+  return CUSTOM_COLORS.find(c => c.id === tag.colorId)?.cls ?? 'bg-gray-100 text-gray-600';
+}
+
+function renderCustomTags() {
+  const profile = getProfile();
+
+  // Custom categories
+  const catSection = document.getElementById('custom-categories-section');
+  const catList = document.getElementById('custom-categories-list');
+  if (profile.customCategories.length > 0) {
+    catSection.classList.remove('hidden');
+    catList.innerHTML = profile.customCategories.map(c => `
+      <li class="flex items-center gap-2 group">
+        <span class="badge ${tagColor(c)} flex-1">${esc(c.label)}</span>
+        <button class="edit-tag opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-1 text-xs"
+                data-type="category" data-id="${esc(c.id)}" title="Edit">✏️</button>
+        <button class="del-tag opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-lg leading-none p-1"
+                data-type="category" data-id="${esc(c.id)}" data-label="${esc(c.label)}" title="Delete">×</button>
+      </li>`).join('');
+  } else {
+    catSection.classList.add('hidden');
+  }
+
+  // Custom priorities
+  const priSection = document.getElementById('custom-priorities-section');
+  const priList = document.getElementById('custom-priorities-list');
+  if (profile.customPriorities.length > 0) {
+    priSection.classList.remove('hidden');
+    priList.innerHTML = profile.customPriorities.map(p => `
+      <li class="flex items-center gap-2 group">
+        <span class="badge ${tagColor(p)} flex-1">${esc(p.label)}</span>
+        <button class="edit-tag opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-1 text-xs"
+                data-type="priority" data-id="${esc(p.id)}" title="Edit">✏️</button>
+        <button class="del-tag opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-lg leading-none p-1"
+                data-type="priority" data-id="${esc(p.id)}" data-label="${esc(p.label)}" title="Delete">×</button>
+      </li>`).join('');
+  } else {
+    priSection.classList.add('hidden');
+  }
+
+  // Wire up edit/delete for custom tags
+  document.querySelectorAll('.edit-tag').forEach(btn => {
+    btn.addEventListener('click', () => openTagModal(btn.dataset.type, btn.dataset.id));
+  });
+  document.querySelectorAll('.del-tag').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.type;
+      const id = btn.dataset.id;
+      const label = btn.dataset.label;
+      confirmAction('🗑️', `Delete ${type}?`, `Delete "${label}"? Items using it will lose this tag.`, 'Delete', () => {
+        const p = getProfile();
+        if (type === 'category') p.customCategories = p.customCategories.filter(c => c.id !== id);
+        else p.customPriorities = p.customPriorities.filter(pr => pr.id !== id);
+        saveProfile(p);
+        renderCustomTags();
+        window.showToast?.(`${type === 'category' ? 'Category' : 'Priority'} deleted`);
+      });
+    });
+  });
+}
+
+// ── Tag Modal (shared for category + priority) ────────────────────────────────
+
+function renderColorSwatches(selectedColorId = 'slate') {
+  const container = document.getElementById('tag-color-swatches');
+  container.innerHTML = CUSTOM_COLORS.map(c => `
+    <button type="button" class="color-swatch w-7 h-7 rounded-full border-2 transition-all
+                                 ${c.id === selectedColorId ? 'border-gray-700 scale-110' : 'border-transparent hover:scale-105'}"
+            style="background-color:${c.dot}" data-color="${esc(c.id)}" title="${esc(c.id)}">
+    </button>`).join('');
+
+  container.querySelectorAll('.color-swatch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('tag-color').value = btn.dataset.color;
+      renderColorSwatches(btn.dataset.color);
+    });
+  });
+}
+
+function openTagModal(type, editId = null) {
+  document.getElementById('form-tag').reset();
+  document.getElementById('tag-edit-id').value = '';
+  document.getElementById('tag-type').value = type;
+  document.getElementById('modal-tag-title').textContent =
+    editId ? `Edit ${type === 'category' ? 'Category' : 'Priority'}` :
+             `Add ${type === 'category' ? 'Category' : 'Priority'}`;
+
+  let selectedColor = 'slate';
+
+  if (editId) {
+    const profile = getProfile();
+    const list = type === 'category' ? profile.customCategories : profile.customPriorities;
+    const tag = list.find(t => t.id === editId);
+    if (tag) {
+      document.getElementById('tag-edit-id').value = tag.id;
+      document.getElementById('tag-label').value = tag.label;
+      selectedColor = tag.colorId ?? 'slate';
+    }
+  }
+
+  document.getElementById('tag-color').value = selectedColor;
+  renderColorSwatches(selectedColor);
+  document.getElementById('modal-tag').classList.remove('hidden');
+  setTimeout(() => document.getElementById('tag-label').focus(), 50);
+}
+
+document.getElementById('btn-add-category').addEventListener('click', () => openTagModal('category'));
+document.getElementById('btn-add-priority').addEventListener('click', () => openTagModal('priority'));
+document.getElementById('close-tag').addEventListener('click', () => {
+  document.getElementById('modal-tag').classList.add('hidden');
+});
+document.getElementById('cancel-tag').addEventListener('click', () => {
+  document.getElementById('modal-tag').classList.add('hidden');
+});
+document.getElementById('modal-tag').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+});
+
+document.getElementById('form-tag').addEventListener('submit', e => {
+  e.preventDefault();
+  const type = document.getElementById('tag-type').value;
+  const editId = document.getElementById('tag-edit-id').value;
+  const label = document.getElementById('tag-label').value.trim();
+  const colorId = document.getElementById('tag-color').value || 'slate';
+  const profile = getProfile();
+
+  if (type === 'category') {
+    if (editId) {
+      const tag = profile.customCategories.find(c => c.id === editId);
+      if (tag) Object.assign(tag, { label, colorId });
+    } else {
+      profile.customCategories.push({ id: genId(), label, colorId });
+    }
+  } else {
+    if (editId) {
+      const tag = profile.customPriorities.find(p => p.id === editId);
+      if (tag) Object.assign(tag, { label, colorId });
+    } else {
+      profile.customPriorities.push({ id: genId(), label, colorId });
+    }
+  }
+
+  saveProfile(profile);
+  document.getElementById('modal-tag').classList.add('hidden');
+  renderCustomTags();
+  window.showToast?.(editId ? 'Updated' : `${type === 'category' ? 'Category' : 'Priority'} added`);
+});
+
+// ── Keyboard ─────────────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['modal-essential', 'modal-tag', 'modal-confirm'].forEach(id => {
+      document.getElementById(id).classList.add('hidden');
+    });
+  }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+renderBuiltins();
+renderEssentials();
+renderCustomTags();
 </script>
