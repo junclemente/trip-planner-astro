@@ -36,6 +36,13 @@ import Layout from '../layouts/Layout.astro';
       <div id="recommended-defaults" class="flex flex-wrap gap-2"></div>
     </div>
 
+    <!-- Clothing Defaults -->
+    <div class="card p-4">
+      <h2 class="font-semibold text-gray-900 mb-0.5">Clothing Defaults</h2>
+      <p class="text-xs text-gray-500 mb-3">Applied when creating new trips. You can adjust quantities per-trip in the Packing List.</p>
+      <div id="clothing-defaults-rows" class="space-y-3"></div>
+    </div>
+
     <!-- Categories -->
     <div class="card p-4">
       <div class="flex items-center justify-between mb-3">
@@ -463,9 +470,57 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── Clothing Defaults ─────────────────────────────────────────────────────────
+
+const CLOTHING_FIELDS = [
+  { key: 'extraUnderwear', label: 'Extra Underwear',  desc: 'Added on top of # of nights' },
+  { key: 'extraSocks',     label: 'Extra Socks',      desc: 'Added on top of # of nights' },
+  { key: 'extraOutfits',   label: 'Extra Outfits',    desc: 'Added on top of # of nights' },
+  { key: 'pajamas',        label: 'Pajama Sets',      desc: 'Base quantity (default: 1)' },
+];
+
+function renderClothingDefaults() {
+  const profile = getProfile();
+  const cd = profile.clothingDefaults ?? {};
+  const container = document.getElementById('clothing-defaults-rows');
+
+  container.innerHTML = CLOTHING_FIELDS.map(f => {
+    const val = cd[f.key] ?? (f.key === 'pajamas' ? 1 : 0);
+    return `
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-sm font-medium text-gray-700">${esc(f.label)}</span>
+          <span class="text-xs text-gray-400 ml-1.5">${esc(f.desc)}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="cd-dec w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-lg flex items-center justify-center leading-none" data-key="${esc(f.key)}">−</button>
+          <span class="w-6 text-center text-sm font-semibold text-gray-800 cd-val" data-key="${esc(f.key)}">${val}</span>
+          <button type="button" class="cd-inc w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-lg flex items-center justify-center leading-none" data-key="${esc(f.key)}">+</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  container.querySelectorAll('.cd-dec').forEach(btn => {
+    btn.addEventListener('click', () => adjustClothingDefault(btn.dataset.key, -1));
+  });
+  container.querySelectorAll('.cd-inc').forEach(btn => {
+    btn.addEventListener('click', () => adjustClothingDefault(btn.dataset.key, 1));
+  });
+}
+
+function adjustClothingDefault(key, delta) {
+  const profile = getProfile();
+  if (!profile.clothingDefaults) profile.clothingDefaults = {};
+  const current = profile.clothingDefaults[key] ?? (key === 'pajamas' ? 1 : 0);
+  profile.clothingDefaults[key] = Math.max(0, current + delta);
+  saveProfile(profile);
+  renderClothingDefaults();
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 renderBuiltins();
 renderEssentials();
 renderCustomTags();
+renderClothingDefaults();
 </script>

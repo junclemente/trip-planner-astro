@@ -240,7 +240,7 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
   const profile = getProfile();
   const tripId = `trip-${Date.now().toString(36)}`;
   const days = buildDays(tripId, startDate, nights);
-  const checklistItems = buildInitialChecklist(tripId, days, nights, profile.personalEssentials);
+  const checklistItems = buildInitialChecklist(tripId, nights, profile.personalEssentials, profile.clothingDefaults ?? {});
 
   const trip = {
     id: tripId, name, destination, departFrom, startDate, endDate, nights,

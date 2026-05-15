@@ -100,12 +100,12 @@ export function migrateChecklistItems(items) {
   return changed;
 }
 
-export function calcClothing(nights, overrides = {}) {
+export function calcClothing(nights, overrides = {}, profileDefaults = {}) {
   return {
-    underwear: overrides.underwear ?? nights,
-    socks:     overrides.socks     ?? nights,
-    outfits:   overrides.outfits   ?? nights,
-    pajamas:   overrides.pajamas   ?? 1,
+    underwear: overrides.underwear ?? (nights + (profileDefaults.extraUnderwear ?? 0)),
+    socks:     overrides.socks     ?? (nights + (profileDefaults.extraSocks     ?? 0)),
+    outfits:   overrides.outfits   ?? (nights + (profileDefaults.extraOutfits   ?? 0)),
+    pajamas:   overrides.pajamas   ?? (profileDefaults.pajamas ?? 1),
   };
 }
 
@@ -126,14 +126,10 @@ export function buildDays(tripId, startDate, nights) {
   return days;
 }
 
-export function buildInitialChecklist(tripId, days, nights, profileEssentials = [], overrides = null) {
-  const firstDayId = days[0]?.id;
-  if (!firstDayId) return [];
-
-  const clothing = calcClothing(nights, overrides ?? {});
+export function buildInitialChecklist(tripId, nights, profileEssentials = [], clothingDefaults = {}) {
+  const clothing = calcClothing(nights, {}, clothingDefaults);
   const items = [];
 
-  // Clothing on day 1
   const clothingItems = [
     { text: 'Underwear', type: 'underwear', qty: clothing.underwear },
     { text: 'Socks',     type: 'socks',     qty: clothing.socks },
@@ -142,18 +138,17 @@ export function buildInitialChecklist(tripId, days, nights, profileEssentials = 
   ];
   for (const c of clothingItems) {
     items.push({
-      id: genId(), tripId, dayId: firstDayId,
+      id: genId(), tripId, dayId: null,
       text: c.text, category: 'clothing', priority: null,
       checked: false, quantity: c.qty,
       isClothing: true, clothingType: c.type,
     });
   }
 
-  // Personal essentials from profile on day 1
   for (const pe of profileEssentials) {
     items.push({
-      id: genId(), tripId, dayId: firstDayId,
-      text: pe.text, category: null, priority: null,
+      id: genId(), tripId, dayId: null,
+      text: pe.text, category: pe.category ?? null, priority: null,
       checked: false, quantity: null,
     });
   }

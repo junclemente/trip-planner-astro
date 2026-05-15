@@ -53,11 +53,11 @@ export function unarchiveTrip(id) {
 export function getProfile() {
   try {
     const stored = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
-    const defaults = { personalEssentials: [], customCategories: [], customPriorities: [] };
+    const defaults = { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {} };
     if (!stored) return defaults;
     return { ...defaults, ...stored };
   } catch {
-    return { personalEssentials: [], customCategories: [], customPriorities: [] };
+    return { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {} };
   }
 }
 
@@ -92,6 +92,23 @@ export function exportAllTrips() {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+export function duplicateTrip(id) {
+  const original = getTrip(id);
+  if (!original) return null;
+  const newId = `trip-${Date.now().toString(36)}`;
+  const copy = JSON.parse(JSON.stringify(original));
+  copy.id = newId;
+  copy.name = `${original.name} (copy)`;
+  copy.status = 'active';
+  copy.archivedAt = null;
+  copy.createdAt = new Date().toISOString();
+  (copy.checklistItems ?? []).forEach(item => { item.checked = false; item.tripId = newId; });
+  (copy.days ?? []).forEach(d => { d.tripId = newId; });
+  (copy.itineraryEvents ?? []).forEach(ev => { ev.tripId = newId; });
+  saveTrip(copy);
+  return copy;
 }
 
 export function importTripFromJSON(jsonText) {
