@@ -21,6 +21,27 @@ export function getTrip(id) {
 }
 
 export function saveTrip(trip) {
+  // Ensure destinations array exists and has proper structure
+  if (!Array.isArray(trip.destinations)) {
+    trip.destinations = [];
+  }
+
+  // Ensure each destination has all required fields
+  trip.destinations = trip.destinations.map(dest => ({
+    id: dest.id || genId(),
+    country: dest.country || '',
+    countryCode: dest.countryCode || '',
+    city: dest.city || '',
+    region: dest.region || '',
+    arrivalDate: dest.arrivalDate || trip.startDate || '',
+    departureDate: dest.departureDate || trip.endDate || '',
+    currency: dest.currency || '',
+    currencyCode: dest.currencyCode || '',
+    currencyNotes: dest.currencyNotes || '',
+    plugTypes: Array.isArray(dest.plugTypes) ? dest.plugTypes : [],
+    voltage: dest.voltage || ''
+  }));
+
   const trips = getTrips();
   const idx = trips.findIndex(t => t.id === trip.id);
   if (idx >= 0) trips[idx] = trip; else trips.push(trip);

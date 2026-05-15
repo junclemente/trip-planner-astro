@@ -40,8 +40,14 @@ import Layout from '../../layouts/Layout.astro';
           <input id="nt-name" type="text" class="input" placeholder="e.g. Weekend in NYC" required />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Destination *</label>
-          <input id="nt-destination" type="text" class="input" placeholder="e.g. New York, NY" required />
+          <label class="block text-sm font-medium text-gray-700 mb-1">Country *</label>
+          <div class="relative">
+            <input id="nt-country" type="text" class="input" placeholder="Start typing country name..." required
+                   autocomplete="off" />
+            <div id="country-dropdown" class="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto">
+              <!-- Country options populated by JavaScript -->
+            </div>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Departing From</label>
@@ -195,6 +201,8 @@ function closeNewTripModal() {
   document.getElementById('form-new-trip').reset();
   document.getElementById('custom-nights-row').classList.add('hidden');
   document.getElementById('nt-end-display').classList.add('hidden');
+  hideDropdown();
+  selectedCountry = null;
 }
 
 function updateEndDate() {
@@ -228,153 +236,265 @@ document.querySelectorAll('input[name="template"]').forEach(r => {
 });
 document.getElementById('nt-start').addEventListener('change', updateEndDate);
 document.getElementById('nt-nights').addEventListener('input', updateEndDate);
+
+// ── Country autocomplete event listeners ─────────────────────────────────────
+let currentCountries = [];
+
+document.getElementById('nt-country').addEventListener('input', e => {
+  const query = e.target.value;
+  selectedCountry = null;
+  focusedIndex = -1;
+
+  if (query.trim()) {
+    currentCountries = filterCountries(query);
+    renderCountryDropdown(currentCountries);
+  } else {
+    hideDropdown();
+  }
+});
+
+document.getElementById('nt-country').addEventListener('keydown', e => {
+  if (currentCountries.length === 0) return;
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault();
+      focusedIndex = Math.min(focusedIndex + 1, currentCountries.length - 1);
+      renderCountryDropdown(currentCountries);
+      break;
+
+    case 'ArrowUp':
+      e.preventDefault();
+      focusedIndex = Math.max(focusedIndex - 1, -1);
+      renderCountryDropdown(currentCountries);
+      break;
+
+    case 'Enter':
+      e.preventDefault();
+      if (focusedIndex >= 0 && focusedIndex < currentCountries.length) {
+        selectCountry(currentCountries[focusedIndex]);
+      }
+      break;
+
+    case 'Escape':
+      hideDropdown();
+      break;
+  }
+});
+
+document.getElementById('nt-country').addEventListener('blur', () => {
+  // Delay hiding to allow click events on dropdown items
+  setTimeout(() => hideDropdown(), 150);
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('#nt-country') && !e.target.closest('#country-dropdown')) {
+    hideDropdown();
+  }
+});
+
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNewTripModal(); });
 
-// ── Parse destination and create destination object ─────────────────────────────
+// ── Country autocomplete ─────────────────────────────────────────────────────
 
-function parseDestinationInput(input) {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
+let selectedCountry = null;
+let focusedIndex = -1;
 
-  // Try to split on comma to get "City, Country" format
-  const parts = trimmed.split(',').map(p => p.trim());
+function filterCountries(query) {
+  if (!query.trim()) return [];
 
-  if (parts.length === 1) {
-    // Single part - treat as country only
-    const country = findCountryMatch(parts[0]);
-    return { city: '', country: country ? country.name : parts[0] };
-  } else if (parts.length >= 2) {
-    // Multiple parts - treat as "City, Country" (ignore extra parts)
-    const cityPart = parts[0];
-    const countryPart = parts[1];
+  const normalized = query.toLowerCase().trim();
+  const matches = COUNTRIES.filter(country =>
+    country.name.toLowerCase().includes(normalized)
+  );
 
-    // Handle common US state abbreviations
-    if (countryPart.toUpperCase() === 'NY') {
-      return { city: cityPart, country: 'United States' };
-    }
-    if (countryPart.toUpperCase() === 'CA' && cityPart.toLowerCase().includes('california')) {
-      return { city: cityPart, country: 'United States' };
-    }
-    if (['AL', 'AK', 'AZ', 'AR', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'].includes(countryPart.toUpperCase())) {
-      return { city: cityPart, country: 'United States' };
-    }
-
-    const country = findCountryMatch(countryPart);
-    return { city: cityPart, country: country ? country.name : countryPart };
-  }
-
-  return { city: '', country: trimmed };
+  // Sort exact matches first, then by length
+  return matches
+    .sort((a, b) => {
+      const aExact = a.name.toLowerCase().startsWith(normalized);
+      const bExact = b.name.toLowerCase().startsWith(normalized);
+      if (aExact && !bExact) return -1;
+      if (bExact && !aExact) return 1;
+      return a.name.length - b.name.length;
+    })
+    .slice(0, 8);
 }
 
-function findCountryMatch(input) {
-  const normalized = input.toLowerCase();
+function renderCountryDropdown(countries) {
+  const dropdown = document.getElementById('country-dropdown');
 
-  // Try exact name match first
-  let match = COUNTRIES.find(c => c.name.toLowerCase() === normalized);
-  if (match) return match;
-
-  // Try common abbreviations and alternative names
-  const commonNames = {
-    'usa': 'United States',
-    'america': 'United States',
-    'us': 'United States',
-    'uk': 'United Kingdom',
-    'britain': 'United Kingdom',
-    'england': 'United Kingdom',
-    'uae': 'United Arab Emirates',
-    'emirates': 'United Arab Emirates'
-  };
-
-  if (commonNames[normalized]) {
-    return COUNTRIES.find(c => c.name === commonNames[normalized]);
+  if (countries.length === 0) {
+    dropdown.classList.add('hidden');
+    return;
   }
 
-  // Try partial match on country name
-  match = COUNTRIES.find(c => c.name.toLowerCase().includes(normalized));
-  if (match) return match;
+  dropdown.innerHTML = countries.map((country, index) => {
+    // Get flag emoji from country code (simple approach)
+    const flag = getCountryFlag(country.code);
+    const isActive = index === focusedIndex;
 
-  return null;
+    return `
+      <div class="px-3 py-2 cursor-pointer hover:bg-gray-50 ${isActive ? 'bg-indigo-50' : ''}"
+           data-country-index="${index}">
+        <span class="text-lg">${flag}</span> ${esc(country.name)}
+      </div>
+    `;
+  }).join('');
+
+  dropdown.classList.remove('hidden');
+
+  // Add click listeners
+  dropdown.querySelectorAll('[data-country-index]').forEach(el => {
+    el.addEventListener('click', () => {
+      const index = parseInt(el.dataset.countryIndex);
+      selectCountry(countries[index]);
+    });
+  });
 }
 
-function createDestinationFromInput(destinationInput, startDate, endDate) {
-  const parsed = parseDestinationInput(destinationInput);
-  if (!parsed) return null;
+function getCountryFlag(countryCode) {
+  // Simple flag emoji conversion (works for most countries)
+  if (!countryCode || countryCode.length !== 2) return '🌍';
+  const codePoints = countryCode.toUpperCase().split('').map(char =>
+    127397 + char.charCodeAt(0)
+  );
+  return String.fromCodePoint(...codePoints);
+}
 
-  const country = findCountryMatch(parsed.country);
+function selectCountry(country) {
+  selectedCountry = country;
+  document.getElementById('nt-country').value = country.name;
+  document.getElementById('country-dropdown').classList.add('hidden');
+  focusedIndex = -1;
+
+  // Auto-fill trip name if empty
+  const nameInput = document.getElementById('nt-name');
+  if (!nameInput.value.trim()) {
+    nameInput.value = `Trip to ${country.name}`;
+  }
+}
+
+function hideDropdown() {
+  document.getElementById('country-dropdown').classList.add('hidden');
+  focusedIndex = -1;
+}
+
+function createDestinationFromCountry(country, startDate, endDate) {
+  if (!country) return null;
 
   return {
     id: genId(),
-    city: parsed.city,
-    country: parsed.country,
-    countryCode: country?.code ?? '',
+    country: country.name,
+    countryCode: country.code,
+    city: '',
+    region: '',
     arrivalDate: startDate,
     departureDate: endDate,
-    currency: country?.currency ?? '',
-    currencyCode: country?.currencyCode ?? '',
+    currency: country.currency,
+    currencyCode: country.currencyCode,
     currencyNotes: '',
-    plugTypes: country?.plugTypes ?? [],
-    voltage: country?.voltage ?? ''
+    plugTypes: country.plugTypes || [],
+    voltage: country.voltage || ''
   };
 }
 
 document.getElementById('form-new-trip').addEventListener('submit', e => {
   e.preventDefault();
-  const name = document.getElementById('nt-name').value.trim();
-  const destination = document.getElementById('nt-destination').value.trim();
-  const departFrom = document.getElementById('nt-depart').value.trim();
-  const startDate = document.getElementById('nt-start').value;
-  const template = document.querySelector('input[name="template"]:checked')?.value;
 
-  // Fix template validation - handle case where no template is selected
-  let nights = null;
-  if (template && template !== 'custom') {
-    nights = TEMPLATES[template]?.nights;
-  } else if (template === 'custom') {
-    nights = parseInt(document.getElementById('nt-nights').value);
-  } else {
-    // If no template selected, default to weekend (2 nights)
-    nights = 2;
-  }
-
-  if (!nights || nights < 1) {
-    window.showToast?.('Please set number of nights');
-    return;
-  }
-
-  const endDate = calcEndDate(startDate, nights);
-  const profile = getProfile();
-  const tripId = `trip-${Date.now().toString(36)}`;
-  const days = buildDays(tripId, startDate, nights);
-  const checklistItems = buildInitialChecklist(tripId, nights, profile.personalEssentials, profile.clothingDefaults ?? {});
-
-  // Create destination object from the destination input (fault-tolerant)
-  let destinations = [];
   try {
-    const destinationObj = createDestinationFromInput(destination, startDate, endDate);
-    if (destinationObj) {
-      destinations = [destinationObj];
+    const name = document.getElementById('nt-name').value.trim();
+    const departFrom = document.getElementById('nt-depart').value.trim();
+    const startDate = document.getElementById('nt-start').value;
+    const template = document.querySelector('input[name="template"]:checked')?.value;
+
+    if (!name) {
+      window.showToast?.('Please enter a trip name');
+      return;
     }
+
+    if (!startDate) {
+      window.showToast?.('Please select a start date');
+      return;
+    }
+
+    // Handle template validation - handle case where no template is selected
+    let nights = null;
+    if (template && template !== 'custom') {
+      nights = TEMPLATES[template]?.nights;
+    } else if (template === 'custom') {
+      nights = parseInt(document.getElementById('nt-nights').value);
+    } else {
+      // If no template selected, default to weekend (2 nights)
+      nights = 2;
+    }
+
+    if (!nights || nights < 1) {
+      window.showToast?.('Please set number of nights');
+      return;
+    }
+
+    const endDate = calcEndDate(startDate, nights);
+    const profile = getProfile();
+    const tripId = `trip-${Date.now().toString(36)}`;
+    const days = buildDays(tripId, startDate, nights);
+    const checklistItems = buildInitialChecklist(tripId, nights, profile.personalEssentials, profile.clothingDefaults ?? {});
+
+    // Create destination from selected country (fault-tolerant)
+    let destinations = [];
+    let destinationDisplayName = '';
+
+    if (selectedCountry) {
+      try {
+        const destinationObj = createDestinationFromCountry(selectedCountry, startDate, endDate);
+        if (destinationObj) {
+          destinations = [destinationObj];
+          destinationDisplayName = selectedCountry.name;
+        }
+      } catch (error) {
+        console.warn('Error creating destination from country, creating trip with empty destinations:', error);
+        // Continue with empty destinations array
+      }
+    }
+
+    const trip = {
+      id: tripId,
+      name,
+      destination: destinationDisplayName, // Keep for backward compatibility
+      departFrom,
+      startDate,
+      endDate,
+      nights,
+      template: template ?? 'custom',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      archivedAt: null,
+      clothingOverrides: null,
+      days,
+      checklistItems,
+      itineraryEvents: [],
+      destinations,
+      origin: { city: departFrom ?? '', country: 'USA' },
+      travelDocuments: {
+        passport: { name: '', expiryDate: '' },
+        insurance: { hasInsurance: false, provider: '', policyNumber: '', notes: '' },
+        customReminders: [],
+        dismissedVisaReminders: []
+      },
+      laundryPlan: { enabled: false, everyXDays: 7 },
+      dismissedIntlSuggestions: [],
+    };
+
+    saveTrip(trip);
+    closeNewTripModal();
+    renderTrips();
+    window.showToast?.(`"${name}" created!`);
+    setTimeout(() => { window.location.href = `${BASE}trip/?id=${tripId}`; }, 600);
+
   } catch (error) {
-    console.warn('Error parsing destination, creating trip with empty destinations:', error);
-    // Continue with empty destinations array
+    console.error('Error creating trip:', error);
+    window.showToast?.('Error creating trip. Please try again.');
   }
-
-  const trip = {
-    id: tripId, name, destination, departFrom, startDate, endDate, nights,
-    template: template ?? 'custom', status: 'active',
-    createdAt: new Date().toISOString(), archivedAt: null,
-    clothingOverrides: null, days, checklistItems, itineraryEvents: [],
-    destinations, origin: { city: departFrom ?? '', country: 'USA' },
-    travelDocuments: { passport: { name: '', expiryDate: '' }, insurance: { hasInsurance: false, provider: '', policyNumber: '', notes: '' }, customReminders: [], dismissedVisaReminders: [] },
-    laundryPlan: { enabled: false, everyXDays: 7 },
-    dismissedIntlSuggestions: [],
-  };
-
-  saveTrip(trip);
-  closeNewTripModal();
-  renderTrips();
-  window.showToast?.(`"${name}" created!`);
-  setTimeout(() => { window.location.href = `${BASE}trip/?id=${tripId}`; }, 600);
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
