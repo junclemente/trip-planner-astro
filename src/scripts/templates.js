@@ -100,11 +100,15 @@ export function migrateChecklistItems(items) {
   return changed;
 }
 
-export function calcClothing(nights, overrides = {}, profileDefaults = {}) {
+export function calcClothing(nights, overrides = {}, profileDefaults = {}, laundryPlan = null) {
+  // With laundry, pack for one cycle + 1 buffer day instead of full trip length
+  const base = (laundryPlan?.enabled && laundryPlan.everyXDays > 0)
+    ? Math.min(nights, laundryPlan.everyXDays) + 1
+    : nights;
   return {
-    underwear: overrides.underwear ?? (nights + (profileDefaults.extraUnderwear ?? 0)),
-    socks:     overrides.socks     ?? (nights + (profileDefaults.extraSocks     ?? 0)),
-    outfits:   overrides.outfits   ?? (nights + (profileDefaults.extraOutfits   ?? 0)),
+    underwear: overrides.underwear ?? (base + (profileDefaults.extraUnderwear ?? 0)),
+    socks:     overrides.socks     ?? (base + (profileDefaults.extraSocks     ?? 0)),
+    outfits:   overrides.outfits   ?? (base + (profileDefaults.extraOutfits   ?? 0)),
     pajamas:   overrides.pajamas   ?? (profileDefaults.pajamas ?? 1),
   };
 }

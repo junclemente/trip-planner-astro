@@ -78,7 +78,7 @@ import Layout from '../../layouts/Layout.astro';
         </div>
         <div id="custom-nights-row" class="hidden">
           <label class="block text-sm font-medium text-gray-700 mb-1">Number of Nights *</label>
-          <input id="nt-nights" type="number" min="1" max="365" class="input" placeholder="e.g. 5" />
+          <input id="nt-nights" type="number" min="1" max="365" class="input" placeholder="e.g. 5" required />
         </div>
         <div id="nt-end-display" class="text-sm text-gray-500 hidden">
           Returns: <span id="nt-end-date-text" class="font-medium text-gray-800"></span>
@@ -247,6 +247,10 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
     template: template ?? 'custom', status: 'active',
     createdAt: new Date().toISOString(), archivedAt: null,
     clothingOverrides: null, days, checklistItems, itineraryEvents: [],
+    destinations: [], origin: { city: departFrom ?? '', country: 'USA' },
+    travelDocuments: { passport: { name: '', expiryDate: '' }, insurance: { hasInsurance: false, provider: '', policyNumber: '', notes: '' }, customReminders: [], dismissedVisaReminders: [] },
+    laundryPlan: { enabled: false, everyXDays: 7 },
+    dismissedIntlSuggestions: [],
   };
 
   saveTrip(trip);

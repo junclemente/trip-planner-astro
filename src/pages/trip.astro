@@ -271,6 +271,99 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </div>
 
+  <!-- ── Add / Edit Destination Modal ── -->
+  <div id="modal-destination" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="flex items-center justify-between p-4 border-b flex-shrink-0">
+        <h2 id="modal-dest-title" class="text-lg font-bold">Add Destination</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-destination">&times;</button>
+      </div>
+      <div class="overflow-y-auto" style="max-height:calc(100vh - 160px)">
+        <form id="form-destination" class="p-4 space-y-3">
+          <input type="hidden" id="dest-edit-id" />
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">City *</label>
+              <input id="dest-city" type="text" class="input text-sm" placeholder="e.g. Seoul" required />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Country *</label>
+              <select id="dest-country-select" class="input text-sm" required>
+                <option value="">— Select —</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Arrival Date</label>
+              <input id="dest-arrival" type="date" class="input text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Departure Date</label>
+              <input id="dest-departure" type="date" class="input text-sm" />
+            </div>
+          </div>
+          <div id="dest-country-info" class="hidden bg-blue-50 rounded-lg p-3 space-y-1.5 text-sm">
+            <div class="flex justify-between items-center">
+              <span class="text-gray-500 text-xs">Currency</span>
+              <span id="dest-info-currency" class="font-medium text-gray-800 text-xs"></span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-500 text-xs">Plug Types</span>
+              <span id="dest-info-plugs" class="font-medium text-gray-800 text-xs"></span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-500 text-xs">Voltage</span>
+              <span id="dest-info-voltage" class="font-medium text-gray-800 text-xs"></span>
+            </div>
+            <div id="dest-voltage-warn" class="hidden text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded-lg mt-1">
+              ⚡ 220V destination — check your devices are dual-voltage (100–240V label). Most modern electronics are fine; hair dryers and curling irons often are not.
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Exchange Rate Note</label>
+            <input id="dest-currency-notes" type="text" class="input text-sm"
+                   placeholder="e.g. 1 USD ≈ 1,350 KRW as of May 2026" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">ATM / Cash Notes</label>
+            <input id="dest-atm-notes" type="text" class="input text-sm"
+                   placeholder="e.g. Use 7-Eleven ATMs, avoid airport exchange" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Card Acceptance</label>
+            <input id="dest-card-notes" type="text" class="input text-sm"
+                   placeholder="e.g. Visa widely accepted; carry cash for street food" />
+          </div>
+          <div class="flex gap-3 pt-1">
+            <button type="button" class="close-modal btn-secondary flex-1" data-modal="modal-destination">Cancel</button>
+            <button type="submit" class="btn-primary flex-1">Save Destination</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── International Packing Suggestions Modal ── -->
+  <div id="modal-intl-suggest" class="modal-overlay hidden">
+    <div class="modal-box max-w-sm">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 class="text-lg font-bold">International Packing</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-intl-suggest">&times;</button>
+      </div>
+      <div class="p-4">
+        <p class="text-sm text-gray-600 mb-3">Add these international travel items to your packing list?</p>
+        <div id="intl-suggest-list" class="space-y-2 mb-4 max-h-64 overflow-y-auto"></div>
+        <div class="flex gap-3">
+          <button id="intl-suggest-skip" class="btn-secondary flex-1">Skip</button>
+          <button id="intl-suggest-add" class="btn-primary flex-1">Add Selected</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </Layout>
 
 <script>
@@ -283,6 +376,9 @@ import {
   getCategoryLabel, getPriorityLabel, migrateChecklistItems,
   calcClothing, formatDate, formatDateRange, buildDays, TEMPLATES,
 } from '../scripts/templates.js';
+import {
+  COUNTRIES, getCountry, getNeededPlugTypes, needs220VWarning, hasInternationalDests, PLUG_DESCRIPTIONS,
+} from '../data/countries.js';
 
 const BASE = import.meta.env.BASE_URL;
 const params = new URLSearchParams(window.location.search);
@@ -292,12 +388,40 @@ if (!tripId) { location.replace(BASE); throw 0; }
 let trip = getTrip(tripId);
 if (!trip) { location.replace(BASE); throw 0; }
 
-if (migrateChecklistItems(trip.checklistItems ?? [])) saveTrip(trip);
+function migrateTrip(t) {
+  let changed = false;
+  if (!t.destinations) {
+    t.destinations = t.destination ? [{
+      id: genId(), city: t.destination, country: '', countryCode: '',
+      arrivalDate: t.startDate ?? '', departureDate: t.endDate ?? '',
+      currency: '', currencyCode: '', plugTypes: [], voltage: '',
+      currencyNotes: '', atmNotes: '', cardNotes: '',
+    }] : [];
+    changed = true;
+  }
+  if (!t.origin) { t.origin = { city: t.departFrom ?? '', country: 'USA' }; changed = true; }
+  if (!t.travelDocuments) {
+    t.travelDocuments = {
+      passport: { name: '', expiryDate: '' },
+      insurance: { hasInsurance: false, provider: '', policyNumber: '', notes: '' },
+      customReminders: [], dismissedVisaReminders: [],
+    };
+    changed = true;
+  }
+  if (!t.travelDocuments.dismissedVisaReminders) { t.travelDocuments.dismissedVisaReminders = []; changed = true; }
+  if (!t.laundryPlan) { t.laundryPlan = { enabled: false, everyXDays: 7 }; changed = true; }
+  if (!t.dismissedIntlSuggestions) { t.dismissedIntlSuggestions = []; changed = true; }
+  return changed;
+}
+
+const tripMigrated = migrateTrip(trip);
+const checklistMigrated = migrateChecklistItems(trip.checklistItems ?? []);
+if (tripMigrated || checklistMigrated) saveTrip(trip);
 
 let profile = getProfile();
 const readonly = trip.status === 'archived';
 
-// filter state
+// filter / ui state
 let activeCategory = null;
 let activePriority = null;
 let editingSection = null;
@@ -355,7 +479,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     ['modal-item','modal-event','modal-confirm','modal-suggest-events',
-     'modal-expense','modal-settle','modal-member'].forEach(closeModal);
+     'modal-expense','modal-settle','modal-member','modal-destination','modal-intl-suggest'].forEach(closeModal);
   }
 });
 
@@ -377,8 +501,13 @@ function confirmAction(icon, title, msg, okLabel, okClass, onOk) {
 function renderHeader() {
   document.getElementById('back-btn').href = BASE;
   document.getElementById('trip-title').textContent = trip.name;
+  const dests = trip.destinations ?? [];
+  const destLabel = dests.length === 0
+    ? (trip.destination ?? '')
+    : dests.map(d => d.city || d.country).filter(Boolean).join(' → ');
+  const originLabel = (trip.origin?.city || trip.departFrom) ? ` · from ${trip.origin?.city || trip.departFrom}` : '';
   document.getElementById('trip-subtitle').textContent =
-    `${trip.destination}${trip.departFrom ? ' · from ' + trip.departFrom : ''} · ${formatDateRange(trip.startDate, trip.endDate)}`;
+    `${destLabel}${originLabel} · ${formatDateRange(trip.startDate, trip.endDate)}`;
 
   const actions = document.getElementById('trip-actions');
   if (readonly) {
@@ -450,6 +579,11 @@ function renderPackingList() {
     (activeCategory === null || item.category === activeCategory) &&
     (activePriority === null || item.priority === activePriority));
 
+  const laundry = trip.laundryPlan ?? { enabled: false, everyXDays: 7 };
+  const hasIntl = hasInternationalDests(trip.destinations ?? []);
+  const dismissed = trip.dismissedIntlSuggestions ?? [];
+  const pendingIntlSuggestions = hasIntl && buildIntlSuggestions().some(s => !dismissed.includes(s.key));
+
   panel.innerHTML = `
     <div class="sticky top-[97px] bg-white border-b border-gray-100 z-20">
       <div class="px-4 py-2 flex items-center justify-between gap-4">
@@ -463,6 +597,27 @@ function renderPackingList() {
       </div>
       ${total > 0 ? buildFilterBar(items) : ''}
     </div>
+    ${pendingIntlSuggestions ? `<div class="mx-4 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-3">
+      <div><p class="text-sm font-semibold text-blue-800">International trip detected</p>
+        <p class="text-xs text-blue-600 mt-0.5">You have items to add for international travel.</p></div>
+      <button id="btn-intl-suggest" class="btn-primary text-xs py-1.5 px-3 flex-shrink-0">Review</button>
+    </div>` : ''}
+    ${!readonly ? `<div class="mx-4 mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-700">Doing laundry during trip?</p>
+          ${laundry.enabled ? `<p class="text-xs text-gray-500 mt-0.5">Clothing quantities reduced for laundry every ${laundry.everyXDays} days</p>` : ''}
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+          <input type="checkbox" id="laundry-toggle" class="sr-only peer" ${laundry.enabled ? 'checked' : ''} />
+          <div class="w-10 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
+        </label>
+      </div>
+      ${laundry.enabled ? `<div class="flex items-center gap-3 mt-2">
+        <span class="text-xs text-gray-500">Every</span>
+        ${[3, 5, 7].map(d => `<button class="laundry-days text-xs px-3 py-1 rounded-full font-medium ${laundry.everyXDays === d ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}" data-days="${d}">${d} days</button>`).join('')}
+      </div>` : ''}
+    </div>` : ''}
     <ul>
       ${visibleItems.map(item => renderItemRow(item)).join('')}
       ${visibleItems.length === 0 && total > 0 ? `<li class="px-4 py-10 text-center text-sm text-gray-400 italic">No items match the active filter</li>` : ''}
@@ -477,6 +632,21 @@ function renderPackingList() {
   panel.querySelectorAll('.filter-pri').forEach(btn => btn.addEventListener('click', () => { activePriority = btn.dataset.pri || null; renderPackingList(); }));
   panel.querySelectorAll('[data-clothing-dec]').forEach(btn => btn.addEventListener('click', () => adjustClothingQty(btn.dataset.clothingDec, -1)));
   panel.querySelectorAll('[data-clothing-inc]').forEach(btn => btn.addEventListener('click', () => adjustClothingQty(btn.dataset.clothingInc, 1)));
+
+  panel.querySelector('#btn-intl-suggest')?.addEventListener('click', () => openIntlSuggestModal());
+
+  panel.querySelector('#laundry-toggle')?.addEventListener('change', e => {
+    if (!trip.laundryPlan) trip.laundryPlan = { enabled: false, everyXDays: 7 };
+    trip.laundryPlan.enabled = e.target.checked;
+    applyLaundryToClothing();
+    saveTrip(trip); renderPackingList();
+  });
+  panel.querySelectorAll('.laundry-days').forEach(btn => btn.addEventListener('click', () => {
+    if (!trip.laundryPlan) trip.laundryPlan = { enabled: true, everyXDays: 7 };
+    trip.laundryPlan.everyXDays = parseInt(btn.dataset.days);
+    applyLaundryToClothing();
+    saveTrip(trip); renderPackingList();
+  }));
 }
 
 function renderItemRow(item) {
@@ -583,6 +753,192 @@ document.getElementById('form-item').addEventListener('submit', e => {
   window.showToast?.(editId ? 'Item updated' : 'Item added');
 });
 
+// ── Destination Modal ────────────────────────────────────────────────────────
+
+function populateCountrySelect(selectedCode = '') {
+  const sel = document.getElementById('dest-country-select');
+  if (!sel) return;
+  sel.innerHTML = `<option value="">— Select Country —</option>` +
+    COUNTRIES.slice().sort((a, b) => a.name.localeCompare(b.name))
+      .map(c => `<option value="${esc(c.code)}" ${c.code === selectedCode ? 'selected' : ''}>${esc(c.name)}</option>`)
+      .join('');
+}
+
+function updateDestCountryInfo(code) {
+  const info = document.getElementById('dest-country-info');
+  const country = code ? getCountry(code) : null;
+  if (!country || !code) { info?.classList.add('hidden'); return; }
+  info?.classList.remove('hidden');
+  document.getElementById('dest-info-currency').textContent = `${country.currency} (${country.currencyCode})`;
+  document.getElementById('dest-info-plugs').textContent = country.plugTypes.join(', ') || '—';
+  document.getElementById('dest-info-voltage').textContent = country.voltage || '—';
+  const warn = document.getElementById('dest-voltage-warn');
+  if (warn) warn.classList.toggle('hidden', parseInt(country.voltage) < 220);
+}
+
+function openDestinationModal(editId = null) {
+  document.getElementById('form-destination').reset();
+  document.getElementById('dest-edit-id').value = '';
+  document.getElementById('modal-dest-title').textContent = editId ? 'Edit Destination' : 'Add Destination';
+  document.getElementById('dest-country-info').classList.add('hidden');
+  populateCountrySelect();
+  if (editId) {
+    const d = (trip.destinations ?? []).find(d => d.id === editId);
+    if (d) {
+      document.getElementById('dest-edit-id').value = d.id;
+      document.getElementById('dest-city').value = d.city ?? '';
+      populateCountrySelect(d.countryCode ?? '');
+      document.getElementById('dest-arrival').value = d.arrivalDate ?? '';
+      document.getElementById('dest-departure').value = d.departureDate ?? '';
+      document.getElementById('dest-currency-notes').value = d.currencyNotes ?? '';
+      document.getElementById('dest-atm-notes').value = d.atmNotes ?? '';
+      document.getElementById('dest-card-notes').value = d.cardNotes ?? '';
+      updateDestCountryInfo(d.countryCode ?? '');
+    }
+  }
+  // Default arrival/departure to trip dates if no destinations yet
+  if (!editId && !(trip.destinations ?? []).length) {
+    document.getElementById('dest-arrival').value = trip.startDate ?? '';
+    document.getElementById('dest-departure').value = trip.endDate ?? '';
+  }
+  openModal('modal-destination');
+  setTimeout(() => document.getElementById('dest-city').focus(), 50);
+}
+
+document.getElementById('dest-country-select').addEventListener('change', e => {
+  updateDestCountryInfo(e.target.value);
+});
+
+document.getElementById('form-destination').addEventListener('submit', e => {
+  e.preventDefault();
+  const editId = document.getElementById('dest-edit-id').value;
+  const city = document.getElementById('dest-city').value.trim();
+  const code = document.getElementById('dest-country-select').value;
+  const country = getCountry(code);
+  const dest = {
+    id: editId || genId(),
+    city,
+    country: country?.name ?? '',
+    countryCode: code,
+    arrivalDate: document.getElementById('dest-arrival').value || '',
+    departureDate: document.getElementById('dest-departure').value || '',
+    currency: country?.currency ?? '',
+    currencyCode: country?.currencyCode ?? '',
+    plugTypes: country?.plugTypes ?? [],
+    voltage: country?.voltage ?? '',
+    currencyNotes: document.getElementById('dest-currency-notes').value.trim(),
+    atmNotes: document.getElementById('dest-atm-notes').value.trim(),
+    cardNotes: document.getElementById('dest-card-notes').value.trim(),
+  };
+  if (!trip.destinations) trip.destinations = [];
+  const idx = trip.destinations.findIndex(d => d.id === dest.id);
+  if (idx >= 0) trip.destinations[idx] = dest; else trip.destinations.push(dest);
+  // Sort by arrival date
+  trip.destinations.sort((a, b) => (a.arrivalDate ?? '').localeCompare(b.arrivalDate ?? ''));
+  recalcDatesFromDests();
+  saveTrip(trip);
+  closeModal('modal-destination');
+  renderHeader(); renderItinerary(); renderInfo(); renderPackingList();
+  window.showToast?.(editId ? 'Destination updated' : 'Destination added');
+  // Offer international suggestions after a short delay
+  if (code && code !== 'US') setTimeout(() => openIntlSuggestModal(true), 500);
+});
+
+// ── International Packing Suggestions ────────────────────────────────────────
+
+function buildIntlSuggestions() {
+  const dests = (trip.destinations ?? []).filter(d => d.countryCode && d.countryCode !== 'US');
+  if (!dests.length) return [];
+  const suggestions = [];
+  // Power adapters — one per unique needed plug type
+  const plugTypes = getNeededPlugTypes(dests);
+  for (const plug of plugTypes) {
+    const desc = PLUG_DESCRIPTIONS[plug] ?? `Type ${plug} adapter`;
+    suggestions.push({ key: `adapter-${plug}`, text: `Power Adapter — ${desc}`, category: null, priority: 'essential' });
+  }
+  // 220V warning item
+  if (needs220VWarning(dests)) {
+    suggestions.push({ key: 'voltage-check', text: 'Check device voltage compatibility (220V destinations)', category: null, priority: 'dont-forget' });
+  }
+  // Standard international travel items
+  suggestions.push({ key: 'passport', text: 'Passport', category: null, priority: 'essential' });
+  suggestions.push({ key: 'intl-insurance', text: 'Travel insurance documents', category: null, priority: 'essential' });
+  suggestions.push({ key: 'doc-copies', text: 'Copies of important documents (physical + digital)', category: null, priority: 'dont-forget' });
+  suggestions.push({ key: 'bank-notify', text: 'Notify bank of travel dates', category: null, priority: 'dont-forget' });
+  suggestions.push({ key: 'intl-data', text: 'International data plan / SIM card', category: null, priority: 'optional' });
+  return suggestions;
+}
+
+function openIntlSuggestModal(onlyIfNew = false) {
+  const suggestions = buildIntlSuggestions();
+  if (!suggestions.length) return;
+  const dismissed = trip.dismissedIntlSuggestions ?? [];
+  const pending = suggestions.filter(s => !dismissed.includes(s.key));
+  if (!pending.length) return;
+  if (onlyIfNew) {
+    // Check if any are already in the packing list
+    const existingTexts = new Set((trip.checklistItems ?? []).map(i => i.text.toLowerCase()));
+    const newItems = pending.filter(s => !existingTexts.has(s.text.toLowerCase()));
+    if (!newItems.length) return;
+  }
+
+  document.getElementById('intl-suggest-list').innerHTML = pending.map((s, i) => `
+    <label class="flex items-start gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
+      <input type="checkbox" class="intl-suggest-check mt-0.5 h-4 w-4 rounded text-indigo-600" data-key="${esc(s.key)}" data-idx="${i}" checked />
+      <div>
+        <p class="text-sm font-medium text-gray-800">${esc(s.text)}</p>
+        ${s.priority ? `<p class="text-xs text-gray-400 capitalize">${s.priority.replace('-', ' ')}</p>` : ''}
+      </div>
+    </label>`).join('');
+
+  openModal('modal-intl-suggest');
+
+  document.getElementById('intl-suggest-skip').onclick = () => {
+    // Dismiss all pending
+    if (!trip.dismissedIntlSuggestions) trip.dismissedIntlSuggestions = [];
+    pending.forEach(s => { if (!trip.dismissedIntlSuggestions.includes(s.key)) trip.dismissedIntlSuggestions.push(s.key); });
+    saveTrip(trip); closeModal('modal-intl-suggest'); renderPackingList();
+  };
+
+  document.getElementById('intl-suggest-add').onclick = () => {
+    const checked = document.querySelectorAll('.intl-suggest-check:checked');
+    if (!trip.dismissedIntlSuggestions) trip.dismissedIntlSuggestions = [];
+    let added = 0;
+    checked.forEach(cb => {
+      const s = pending[parseInt(cb.dataset.idx)];
+      if (!s) return;
+      // Only add if not already in list
+      const exists = (trip.checklistItems ?? []).some(i => i.text.toLowerCase() === s.text.toLowerCase());
+      if (!exists) {
+        if (!trip.checklistItems) trip.checklistItems = [];
+        trip.checklistItems.push({ id: genId(), tripId, dayId: null, text: s.text, category: s.category, priority: s.priority, checked: false, quantity: null });
+        added++;
+      }
+      if (!trip.dismissedIntlSuggestions.includes(s.key)) trip.dismissedIntlSuggestions.push(s.key);
+    });
+    // Dismiss unchecked too
+    document.querySelectorAll('.intl-suggest-check:not(:checked)').forEach(cb => {
+      const key = cb.dataset.key;
+      if (key && !trip.dismissedIntlSuggestions.includes(key)) trip.dismissedIntlSuggestions.push(key);
+    });
+    saveTrip(trip); closeModal('modal-intl-suggest'); renderPackingList();
+    if (added > 0) window.showToast?.(`${added} item${added !== 1 ? 's' : ''} added to packing list`);
+  };
+}
+
+// ── Laundry Plan Helper ───────────────────────────────────────────────────────
+
+function applyLaundryToClothing() {
+  const laundry = trip.laundryPlan ?? { enabled: false, everyXDays: 7 };
+  // Clear manual overrides so recalculation uses laundry plan
+  trip.clothingOverrides = {};
+  const clothing = calcClothing(trip.nights, {}, profile.clothingDefaults ?? {}, laundry);
+  (trip.checklistItems ?? []).forEach(item => {
+    if (!item.isClothing) return;
+    item.quantity = clothing[item.clothingType] ?? item.quantity;
+  });
+}
+
 // ── Itinerary ────────────────────────────────────────────────────────────────
 
 function renderItinerary() {
@@ -593,13 +949,39 @@ function renderItinerary() {
   events.forEach(ev => { if (byDay[ev.dayId]) byDay[ev.dayId].push(ev); });
   trip.days.forEach(d => byDay[d.id].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')));
 
+  const dests = trip.destinations ?? [];
+  const hasDests = dests.length > 0;
+
+  // Build sections: group days by destination
+  let sections;
+  if (hasDests) {
+    const destSections = dests.map(dest => ({
+      dest,
+      days: trip.days.filter(d => d.date >= dest.arrivalDate && d.date <= dest.departureDate),
+    })).filter(s => s.days.length > 0);
+    const assignedIds = new Set(destSections.flatMap(s => s.days.map(d => d.id)));
+    const unassigned = trip.days.filter(d => !assignedIds.has(d.id));
+    sections = [...destSections, ...(unassigned.length ? [{ dest: null, days: unassigned }] : [])];
+  } else {
+    sections = [{ dest: null, days: trip.days }];
+  }
+
+  function renderDestHeader(dest) {
+    if (!dest) return hasDests ? `<div class="px-4 py-2 bg-gray-50 border-b border-gray-100 border-t mt-2"><span class="text-sm font-semibold text-gray-500">Other Days</span></div>` : '';
+    const dateRange = (dest.arrivalDate && dest.departureDate) ? ` · ${formatDate(dest.arrivalDate)} – ${formatDate(dest.departureDate)}` : '';
+    return `<div class="px-4 py-2.5 bg-indigo-50 border-b border-indigo-100 ${hasDests ? 'border-t border-indigo-100' : ''}">
+      <span class="text-sm font-bold text-indigo-900">${esc(dest.city)}${dest.country ? ', ' + esc(dest.country) : ''}</span>
+      <span class="text-xs text-indigo-500 ml-1.5">${esc(dateRange)}</span>
+    </div>`;
+  }
+
   panel.innerHTML = `
     ${!readonly ? `<div class="px-4 py-3 border-b border-gray-100 flex justify-end">
       <button id="btn-add-event-top" class="btn-primary text-xs py-1.5 px-3">+ Add Event</button>
     </div>` : ''}
-    ${trip.days.map(day => {
+    ${sections.map(({ dest, days }) => renderDestHeader(dest) + days.map(day => {
       const dayEvents = byDay[day.id] ?? [];
-      return `<div class="mb-2">
+      return `<div class="mb-1">
         <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
           <div><span class="text-sm font-semibold text-gray-800">${esc(day.label)}</span>
             <span class="text-xs text-gray-400 ml-1.5">${formatDate(day.date)}</span></div>
@@ -610,7 +992,7 @@ function renderItinerary() {
           ${dayEvents.length === 0 ? `<div class="px-4 py-3 text-xs text-gray-400 italic">No events</div>` : ''}
         </div>
       </div>`;
-    }).join('')}`;
+    }).join('')).join('')}`;
 
   panel.querySelector('#btn-add-event-top')?.addEventListener('click', () => openEventModal());
   panel.querySelectorAll('.add-event-day').forEach(btn => btn.addEventListener('click', () => openEventModal(btn.dataset.dayId)));
@@ -693,27 +1075,33 @@ function renderInfo() {
   const panel = document.getElementById('tab-info');
   panel.innerHTML =
     renderInfoBasics() +
+    renderInfoDestinations() +
     renderInfoFlight() +
     renderInfoHotel() +
     renderInfoTransport() +
+    renderInfoDocuments() +
     renderInfoMembers() +
     renderInfoActions();
   attachInfoListeners();
 }
 
 function renderInfoBasics() {
+  const dests = trip.destinations ?? [];
+  const datesFromDests = dests.length > 0;
   if (editingSection === 'basics') {
     return `<div class="card p-4">
       <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Trip Basics</h3>
       <div class="space-y-2.5">
         <div><label class="block text-xs text-gray-500 mb-1">Trip Name</label><input id="info-name" class="input text-sm" value="${esc(trip.name)}" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Destination</label><input id="info-destination" class="input text-sm" value="${esc(trip.destination)}" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Origin City</label><input id="info-origin" class="input text-sm" value="${esc(trip.departFrom ?? '')}" placeholder="e.g. San Diego, CA" /></div>
-        <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Start Date</label><input id="info-start" type="date" class="input text-sm" value="${trip.startDate}" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">End Date</label><input id="info-end" type="date" class="input text-sm" value="${trip.endDate}" /></div>
-        </div>
-        <p id="info-nights-calc" class="text-xs text-gray-500">Nights: <strong>${trip.nights}</strong> (auto-calculated)</p>
+        <div><label class="block text-xs text-gray-500 mb-1">Origin City <span class="font-normal text-gray-400">(where you depart from)</span></label><input id="info-origin" class="input text-sm" value="${esc(trip.origin?.city ?? trip.departFrom ?? '')}" placeholder="e.g. San Diego, CA" /></div>
+        ${datesFromDests
+          ? `<p class="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2">Dates auto-calculated from destinations: <strong>${formatDateRange(trip.startDate, trip.endDate)}</strong></p>`
+          : `<div class="grid grid-cols-2 gap-2">
+              <div><label class="block text-xs text-gray-500 mb-1">Start Date</label><input id="info-start" type="date" class="input text-sm" value="${trip.startDate}" /></div>
+              <div><label class="block text-xs text-gray-500 mb-1">End Date</label><input id="info-end" type="date" class="input text-sm" value="${trip.endDate}" /></div>
+             </div>
+             <p id="info-nights-calc" class="text-xs text-gray-500">Nights: <strong>${trip.nights}</strong> (auto-calculated)</p>`
+        }
         <p class="text-xs text-gray-400">Template: ${esc(TEMPLATES[trip.template]?.label ?? trip.template)} (read-only)</p>
         <div><label class="block text-xs text-gray-500 mb-1">Notes</label><textarea id="info-notes" class="input text-sm resize-none" rows="3" placeholder="Trip notes...">${esc(trip.notes ?? '')}</textarea></div>
       </div>
@@ -729,12 +1117,158 @@ function renderInfoBasics() {
       ${!readonly ? `<button class="info-edit text-xs text-indigo-600 font-medium hover:text-indigo-800" data-section="basics">Edit</button>` : ''}
     </div>
     ${infoRow('Name', trip.name)}
-    ${infoRow('Destination', trip.destination)}
-    ${infoRow('Origin', trip.departFrom, 'Not set')}
+    ${infoRow('Origin', trip.origin?.city || trip.departFrom, 'Not set')}
     ${infoRow('Dates', formatDateRange(trip.startDate, trip.endDate))}
     ${infoRow('Nights', String(trip.nights))}
     ${infoRow('Template', TEMPLATES[trip.template]?.label ?? trip.template)}
     ${trip.notes ? `<div class="mt-2 pt-2 border-t border-gray-50"><p class="text-xs text-gray-500 mb-0.5">Notes</p><p class="text-sm text-gray-800">${esc(trip.notes)}</p></div>` : ''}
+  </div>`;
+}
+
+function renderInfoDestinations() {
+  const dests = trip.destinations ?? [];
+  function destCard(d) {
+    const plugStr = d.plugTypes?.length ? `Type ${d.plugTypes.join('/')}` : '';
+    const voltageStr = d.voltage || '';
+    const powerStr = [plugStr, voltageStr].filter(Boolean).join(' · ');
+    const currStr = d.currencyCode ? `${d.currency || ''} (${d.currencyCode})` : (d.currency || '');
+    const dateStr = (d.arrivalDate && d.departureDate)
+      ? `${formatDate(d.arrivalDate)} – ${formatDate(d.departureDate)}`
+      : d.arrivalDate ? `From ${formatDate(d.arrivalDate)}` : '';
+    const notes = [d.currencyNotes, d.atmNotes, d.cardNotes].filter(Boolean);
+    return `<div class="border border-gray-200 rounded-lg p-3 mb-2">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-gray-800">${esc(d.city)}${d.country ? ', ' + esc(d.country) : ''}</p>
+          ${dateStr ? `<p class="text-xs text-gray-500 mt-0.5">${esc(dateStr)}</p>` : ''}
+          ${currStr ? `<p class="text-xs text-gray-400 mt-0.5">${esc(currStr)}${powerStr ? ' · ' + esc(powerStr) : ''}</p>` : powerStr ? `<p class="text-xs text-gray-400 mt-0.5">${esc(powerStr)}</p>` : ''}
+          ${parseInt(d.voltage) >= 220 ? `<p class="text-xs text-amber-600 mt-0.5">⚡ ${esc(d.voltage)} — check device compatibility</p>` : ''}
+        </div>
+        ${!readonly ? `<div class="flex gap-1 flex-shrink-0">
+          <button class="edit-dest btn-ghost p-1 text-xs" data-dest-id="${esc(d.id)}" title="Edit">✏️</button>
+          <button class="del-dest btn-ghost p-1 text-xs text-red-400 hover:text-red-600" data-dest-id="${esc(d.id)}" title="Delete">×</button>
+        </div>` : ''}
+      </div>
+      ${notes.length ? `<div class="mt-2 pt-2 border-t border-gray-100 space-y-0.5">${notes.map(n => `<p class="text-xs text-gray-600">${esc(n)}</p>`).join('')}</div>` : ''}
+    </div>`;
+  }
+  return `<div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Destinations</h3>
+      ${!readonly ? `<button id="btn-add-dest" class="btn-primary text-sm py-1.5 px-3">+ Add</button>` : ''}
+    </div>
+    ${dests.length > 0
+      ? dests.map(destCard).join('')
+      : `<p class="text-sm text-gray-400 italic">No destinations added. Use + Add to add your first stop.</p>`}
+  </div>`;
+}
+
+function renderInfoDocuments() {
+  const docs = trip.travelDocuments ?? {};
+  const passport = docs.passport ?? {};
+  const insurance = docs.insurance ?? {};
+  const customReminders = docs.customReminders ?? [];
+  const dismissed = new Set(docs.dismissedVisaReminders ?? []);
+  const dests = trip.destinations ?? [];
+
+  // Passport expiry warning
+  let passportWarn = '';
+  if (passport.expiryDate && trip.endDate) {
+    const expiry = new Date(passport.expiryDate + 'T12:00:00');
+    const tripEnd = new Date(trip.endDate + 'T12:00:00');
+    const sixMonthsAfterTrip = new Date(tripEnd);
+    sixMonthsAfterTrip.setMonth(sixMonthsAfterTrip.getMonth() + 6);
+    if (expiry < sixMonthsAfterTrip) {
+      const daysToExpiry = Math.round((expiry - tripEnd) / 86400000);
+      passportWarn = daysToExpiry < 0
+        ? `<p class="text-xs text-red-600 bg-red-50 rounded p-2 mt-1">⚠️ Passport expired before trip end! Renew immediately.</p>`
+        : `<p class="text-xs text-amber-700 bg-amber-50 rounded p-2 mt-1">⚠️ Passport expires within 6 months of trip end. Many countries require 6 months validity. Consider renewing.</p>`;
+    }
+  }
+
+  // Visa / entry requirements from destinations
+  const visaItems = dests
+    .filter(d => d.countryCode && d.countryCode !== 'US')
+    .map(d => {
+      const country = getCountry(d.countryCode);
+      return country ? { code: d.countryCode, country: d.country || country.name, info: country.visaInfo?.US ?? 'Check entry requirements for this country.' } : null;
+    })
+    .filter(Boolean);
+
+  if (editingSection === 'documents') {
+    return `<div class="card p-4">
+      <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Travel Documents</h3>
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Passport</p>
+      <div class="space-y-2 mb-4">
+        <div><label class="block text-xs text-gray-500 mb-1">Passport Holder Name</label><input id="doc-passport-name" class="input text-sm" value="${esc(passport.name ?? '')}" placeholder="Full name as on passport" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Expiry Date</label><input id="doc-passport-expiry" type="date" class="input text-sm" value="${passport.expiryDate ?? ''}" /></div>
+      </div>
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Travel Insurance</p>
+      <div class="space-y-2 mb-4">
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" id="doc-insurance-check" class="h-4 w-4 rounded text-indigo-600" ${insurance.hasInsurance ? 'checked' : ''} />
+          I have travel insurance
+        </label>
+        <div id="doc-insurance-fields" class="${insurance.hasInsurance ? '' : 'hidden'} space-y-2">
+          <div><label class="block text-xs text-gray-500 mb-1">Provider</label><input id="doc-ins-provider" class="input text-sm" value="${esc(insurance.provider ?? '')}" placeholder="e.g. World Nomads" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Policy Number</label><input id="doc-ins-policy" class="input text-sm" value="${esc(insurance.policyNumber ?? '')}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Coverage Notes</label><textarea id="doc-ins-notes" class="input text-sm resize-none" rows="2">${esc(insurance.notes ?? '')}</textarea></div>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button class="info-cancel btn-secondary flex-1 text-sm py-2">Cancel</button>
+        <button class="info-save btn-primary flex-1 text-sm py-2" data-section="documents">Save</button>
+      </div>
+    </div>`;
+  }
+
+  const hasPassport = passport.name || passport.expiryDate;
+  const hasInsurance = insurance.hasInsurance;
+  return `<div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Travel Documents</h3>
+      ${!readonly ? `<button class="info-edit text-xs text-indigo-600 font-medium hover:text-indigo-800" data-section="documents">Edit</button>` : ''}
+    </div>
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Passport</p>
+    ${hasPassport ? `
+      ${infoRow('Name', passport.name, 'Not set')}
+      ${infoRow('Expires', passport.expiryDate ? new Date(passport.expiryDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null, 'Not set')}
+      ${passportWarn}
+    ` : `<p class="text-sm text-gray-400 italic mb-3">No passport info. Tap Edit to add.</p>`}
+    ${visaItems.length > 0 ? `
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1.5">Entry Requirements (US Passport)</p>
+      <div class="space-y-2">
+        ${visaItems.map(v => `
+          <div class="flex items-start gap-2 p-2 rounded-lg ${dismissed.has(v.code) ? 'bg-gray-50 opacity-50' : 'bg-blue-50'}">
+            <input type="checkbox" class="visa-dismiss-check mt-0.5 h-4 w-4 rounded text-indigo-600 flex-shrink-0"
+                   data-country-code="${esc(v.code)}" ${dismissed.has(v.code) ? 'checked' : ''} />
+            <div class="min-w-0">
+              <p class="text-xs font-semibold text-gray-700">${esc(v.country)}</p>
+              <p class="text-xs text-gray-600 mt-0.5">${esc(v.info)}</p>
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+    ${customReminders.length > 0 ? `
+      <div class="mt-3 space-y-1.5">
+        ${customReminders.map(r => `
+          <div class="flex items-center gap-2">
+            <input type="checkbox" class="custom-reminder-check h-4 w-4 rounded text-indigo-600"
+                   data-reminder-id="${esc(r.id)}" ${r.done ? 'checked' : ''} />
+            <span class="text-sm ${r.done ? 'line-through text-gray-400' : 'text-gray-700'} flex-1">${esc(r.text)}</span>
+            ${!readonly ? `<button class="del-reminder text-gray-300 hover:text-red-400 text-lg leading-none" data-reminder-id="${esc(r.id)}">×</button>` : ''}
+          </div>`).join('')}
+      </div>` : ''}
+    ${!readonly ? `<form id="form-custom-reminder" class="flex gap-2 mt-3">
+      <input id="custom-reminder-input" type="text" class="input text-sm flex-1" placeholder="Add custom reminder..." />
+      <button type="submit" class="btn-secondary text-sm px-3">Add</button>
+    </form>` : ''}
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1.5">Travel Insurance</p>
+    ${hasInsurance ? `
+      ${infoRow('Status', 'Covered')}
+      ${insurance.provider ? infoRow('Provider', insurance.provider) : ''}
+      ${insurance.policyNumber ? infoRow('Policy #', insurance.policyNumber) : ''}
+      ${insurance.notes ? `<p class="text-xs text-gray-500 mt-1">${esc(insurance.notes)}</p>` : ''}
+    ` : `<p class="text-sm text-gray-400 italic">No insurance on file. Tap Edit to add.</p>`}
   </div>`;
 }
 
@@ -921,6 +1455,63 @@ function attachInfoListeners() {
     });
   });
 
+  // Destination CRUD
+  document.getElementById('btn-add-dest')?.addEventListener('click', () => openDestinationModal());
+  document.querySelectorAll('.edit-dest').forEach(btn => btn.addEventListener('click', () => openDestinationModal(btn.dataset.destId)));
+  document.querySelectorAll('.del-dest').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = (trip.destinations ?? []).find(d => d.id === btn.dataset.destId);
+      confirmAction('🗺️', 'Remove destination?', `Remove "${d?.city || 'this destination'}" from the trip?`, 'Remove', 'btn-danger',
+        () => {
+          trip.destinations = (trip.destinations ?? []).filter(d => d.id !== btn.dataset.destId);
+          recalcDatesFromDests();
+          saveTrip(trip); renderHeader(); renderItinerary(); renderInfo(); renderPackingList();
+        });
+    });
+  });
+
+  // Documents section — insurance toggle
+  document.getElementById('doc-insurance-check')?.addEventListener('change', e => {
+    document.getElementById('doc-insurance-fields')?.classList.toggle('hidden', !e.target.checked);
+  });
+
+  // Visa dismiss checkboxes
+  document.querySelectorAll('.visa-dismiss-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (!trip.travelDocuments.dismissedVisaReminders) trip.travelDocuments.dismissedVisaReminders = [];
+      if (cb.checked) {
+        if (!trip.travelDocuments.dismissedVisaReminders.includes(cb.dataset.countryCode))
+          trip.travelDocuments.dismissedVisaReminders.push(cb.dataset.countryCode);
+      } else {
+        trip.travelDocuments.dismissedVisaReminders = trip.travelDocuments.dismissedVisaReminders.filter(c => c !== cb.dataset.countryCode);
+      }
+      saveTrip(trip);
+    });
+  });
+
+  // Custom reminders
+  document.querySelectorAll('.custom-reminder-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const r = (trip.travelDocuments?.customReminders ?? []).find(r => r.id === cb.dataset.reminderId);
+      if (r) { r.done = cb.checked; saveTrip(trip); renderInfo(); }
+    });
+  });
+  document.querySelectorAll('.del-reminder').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (trip.travelDocuments?.customReminders)
+        trip.travelDocuments.customReminders = trip.travelDocuments.customReminders.filter(r => r.id !== btn.dataset.reminderId);
+      saveTrip(trip); renderInfo();
+    });
+  });
+  document.getElementById('form-custom-reminder')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const text = document.getElementById('custom-reminder-input').value.trim();
+    if (!text) return;
+    if (!trip.travelDocuments.customReminders) trip.travelDocuments.customReminders = [];
+    trip.travelDocuments.customReminders.push({ id: genId(), text, done: false });
+    saveTrip(trip); renderInfo();
+  });
+
   document.getElementById('btn-add-member')?.addEventListener('click', openMemberModal);
   document.querySelectorAll('.del-member').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -949,32 +1540,72 @@ function attachInfoListeners() {
   });
 }
 
+function recalcDatesFromDests() {
+  const dests = trip.destinations ?? [];
+  if (dests.length === 0) return false;
+  const arrivals = dests.map(d => d.arrivalDate).filter(Boolean).sort();
+  const departures = dests.map(d => d.departureDate).filter(Boolean).sort();
+  if (!arrivals.length || !departures.length) return false;
+  const newStart = arrivals[0];
+  const newEnd = departures[departures.length - 1];
+  const nights = Math.round((new Date(newEnd + 'T12:00:00') - new Date(newStart + 'T12:00:00')) / 86400000);
+  if (nights < 0) return false;
+  const oldDays = trip.days ?? [];
+  const newDays = buildDays(tripId, newStart, nights);
+  const newDateMap = {};
+  newDays.forEach(d => { newDateMap[d.date] = d.id; });
+  (trip.itineraryEvents ?? []).forEach(ev => {
+    const old = oldDays.find(d => d.id === ev.dayId);
+    if (old) ev.dayId = newDateMap[old.date] ?? newDays[newDays.length - 1]?.id ?? ev.dayId;
+  });
+  trip.startDate = newStart; trip.endDate = newEnd; trip.nights = nights; trip.days = newDays;
+  return true;
+}
+
 function saveInfoSection(section) {
   let suggestSection = null;
   if (section === 'basics') {
-    const start = document.getElementById('info-start').value;
-    const end = document.getElementById('info-end').value;
-    const nights = Math.round((new Date(end + 'T12:00:00') - new Date(start + 'T12:00:00')) / 86400000);
-    const datesChanged = start !== trip.startDate || end !== trip.endDate;
-    Object.assign(trip, {
-      name:        document.getElementById('info-name').value.trim() || trip.name,
-      destination: document.getElementById('info-destination').value.trim() || trip.destination,
-      departFrom:  document.getElementById('info-origin').value.trim() || null,
-      startDate: start, endDate: end,
-      nights: nights >= 0 ? nights : trip.nights,
-      notes: document.getElementById('info-notes').value.trim() || null,
-    });
-    if (datesChanged && nights >= 0) {
-      const oldDays = trip.days ?? [];
-      const newDays = buildDays(tripId, start, nights);
-      const newDateMap = {};
-      newDays.forEach(d => { newDateMap[d.date] = d.id; });
-      (trip.itineraryEvents ?? []).forEach(ev => {
-        const old = oldDays.find(d => d.id === ev.dayId);
-        if (old) ev.dayId = newDateMap[old.date] ?? newDays[newDays.length - 1]?.id ?? ev.dayId;
-      });
-      trip.days = newDays;
+    const originCity = document.getElementById('info-origin').value.trim() || null;
+    if (!trip.origin) trip.origin = {};
+    trip.origin.city = originCity ?? '';
+    trip.departFrom = originCity;
+    trip.name = document.getElementById('info-name').value.trim() || trip.name;
+    trip.notes = document.getElementById('info-notes').value.trim() || null;
+    const hasDests = (trip.destinations ?? []).length > 0;
+    if (!hasDests) {
+      const start = document.getElementById('info-start')?.value;
+      const end = document.getElementById('info-end')?.value;
+      if (start && end) {
+        const nights = Math.round((new Date(end + 'T12:00:00') - new Date(start + 'T12:00:00')) / 86400000);
+        const datesChanged = start !== trip.startDate || end !== trip.endDate;
+        if (datesChanged && nights >= 0) {
+          const oldDays = trip.days ?? [];
+          const newDays = buildDays(tripId, start, nights);
+          const newDateMap = {};
+          newDays.forEach(d => { newDateMap[d.date] = d.id; });
+          (trip.itineraryEvents ?? []).forEach(ev => {
+            const old = oldDays.find(d => d.id === ev.dayId);
+            if (old) ev.dayId = newDateMap[old.date] ?? newDays[newDays.length - 1]?.id ?? ev.dayId;
+          });
+          trip.startDate = start; trip.endDate = end;
+          trip.nights = nights >= 0 ? nights : trip.nights;
+          trip.days = newDays;
+        }
+      }
     }
+  } else if (section === 'documents') {
+    if (!trip.travelDocuments) trip.travelDocuments = { passport: {}, insurance: {}, customReminders: [], dismissedVisaReminders: [] };
+    trip.travelDocuments.passport = {
+      name: document.getElementById('doc-passport-name')?.value.trim() ?? '',
+      expiryDate: document.getElementById('doc-passport-expiry')?.value ?? '',
+    };
+    const hasIns = document.getElementById('doc-insurance-check')?.checked ?? false;
+    trip.travelDocuments.insurance = {
+      hasInsurance: hasIns,
+      provider: document.getElementById('doc-ins-provider')?.value.trim() ?? '',
+      policyNumber: document.getElementById('doc-ins-policy')?.value.trim() ?? '',
+      notes: document.getElementById('doc-ins-notes')?.value.trim() ?? '',
+    };
   } else if (section === 'flight') {
     const prevFO = JSON.stringify(trip.flightOut ?? {}), prevFR = JSON.stringify(trip.flightReturn ?? {});
     trip.flightOut = { airline: document.getElementById('fo-airline').value.trim() || null, flightNumber: document.getElementById('fo-number').value.trim() || null, departTime: document.getElementById('fo-depart').value || null, arriveTime: document.getElementById('fo-arrive').value || null, confirmation: document.getElementById('fo-confirm').value.trim() || null };
