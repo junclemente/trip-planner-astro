@@ -181,8 +181,12 @@ function renderTrips() {
 
 function openNewTripModal() {
   document.getElementById('modal-new-trip').classList.remove('hidden');
+  // Ensure a template is always selected by default
   const radio = document.querySelector('input[name="template"][value="weekend"]');
-  if (radio) { radio.checked = true; updateEndDate(); }
+  if (radio) {
+    radio.checked = true;
+    updateEndDate();
+  }
   setTimeout(() => document.getElementById('nt-name').focus(), 50);
 }
 
@@ -320,9 +324,22 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
   const departFrom = document.getElementById('nt-depart').value.trim();
   const startDate = document.getElementById('nt-start').value;
   const template = document.querySelector('input[name="template"]:checked')?.value;
-  let nights = template && template !== 'custom' ? TEMPLATES[template].nights : null;
-  if (template === 'custom') nights = parseInt(document.getElementById('nt-nights').value);
-  if (!nights || nights < 1) { window.showToast?.('Please set number of nights'); return; }
+
+  // Fix template validation - handle case where no template is selected
+  let nights = null;
+  if (template && template !== 'custom') {
+    nights = TEMPLATES[template]?.nights;
+  } else if (template === 'custom') {
+    nights = parseInt(document.getElementById('nt-nights').value);
+  } else {
+    // If no template selected, default to weekend (2 nights)
+    nights = 2;
+  }
+
+  if (!nights || nights < 1) {
+    window.showToast?.('Please set number of nights');
+    return;
+  }
 
   const endDate = calcEndDate(startDate, nights);
   const profile = getProfile();
@@ -330,9 +347,17 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
   const days = buildDays(tripId, startDate, nights);
   const checklistItems = buildInitialChecklist(tripId, nights, profile.personalEssentials, profile.clothingDefaults ?? {});
 
-  // Create destination object from the destination input
-  const destinationObj = createDestinationFromInput(destination, startDate, endDate);
-  const destinations = destinationObj ? [destinationObj] : [];
+  // Create destination object from the destination input (fault-tolerant)
+  let destinations = [];
+  try {
+    const destinationObj = createDestinationFromInput(destination, startDate, endDate);
+    if (destinationObj) {
+      destinations = [destinationObj];
+    }
+  } catch (error) {
+    console.warn('Error parsing destination, creating trip with empty destinations:', error);
+    // Continue with empty destinations array
+  }
 
   const trip = {
     id: tripId, name, destination, departFrom, startDate, endDate, nights,
