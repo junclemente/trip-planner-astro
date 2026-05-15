@@ -94,10 +94,11 @@ import Layout from '../../layouts/Layout.astro';
 </Layout>
 
 <script>
-import { getTrips, saveTrip, getProfile } from '../../scripts/store.js';
+import { getTrips, saveTrip, getProfile, genId } from '../../scripts/store.js';
 import {
   TEMPLATES, buildDays, buildInitialChecklist, calcEndDate, formatDateRange,
 } from '../../scripts/templates.js';
+import { COUNTRIES } from '../../data/countries.js';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -225,6 +226,93 @@ document.getElementById('nt-start').addEventListener('change', updateEndDate);
 document.getElementById('nt-nights').addEventListener('input', updateEndDate);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNewTripModal(); });
 
+// ── Parse destination and create destination object ─────────────────────────────
+
+function parseDestinationInput(input) {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Try to split on comma to get "City, Country" format
+  const parts = trimmed.split(',').map(p => p.trim());
+
+  if (parts.length === 1) {
+    // Single part - treat as country only
+    const country = findCountryMatch(parts[0]);
+    return { city: '', country: country ? country.name : parts[0] };
+  } else if (parts.length >= 2) {
+    // Multiple parts - treat as "City, Country" (ignore extra parts)
+    const cityPart = parts[0];
+    const countryPart = parts[1];
+
+    // Handle common US state abbreviations
+    if (countryPart.toUpperCase() === 'NY') {
+      return { city: cityPart, country: 'United States' };
+    }
+    if (countryPart.toUpperCase() === 'CA' && cityPart.toLowerCase().includes('california')) {
+      return { city: cityPart, country: 'United States' };
+    }
+    if (['AL', 'AK', 'AZ', 'AR', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'].includes(countryPart.toUpperCase())) {
+      return { city: cityPart, country: 'United States' };
+    }
+
+    const country = findCountryMatch(countryPart);
+    return { city: cityPart, country: country ? country.name : countryPart };
+  }
+
+  return { city: '', country: trimmed };
+}
+
+function findCountryMatch(input) {
+  const normalized = input.toLowerCase();
+
+  // Try exact name match first
+  let match = COUNTRIES.find(c => c.name.toLowerCase() === normalized);
+  if (match) return match;
+
+  // Try common abbreviations and alternative names
+  const commonNames = {
+    'usa': 'United States',
+    'america': 'United States',
+    'us': 'United States',
+    'uk': 'United Kingdom',
+    'britain': 'United Kingdom',
+    'england': 'United Kingdom',
+    'uae': 'United Arab Emirates',
+    'emirates': 'United Arab Emirates'
+  };
+
+  if (commonNames[normalized]) {
+    return COUNTRIES.find(c => c.name === commonNames[normalized]);
+  }
+
+  // Try partial match on country name
+  match = COUNTRIES.find(c => c.name.toLowerCase().includes(normalized));
+  if (match) return match;
+
+  return null;
+}
+
+function createDestinationFromInput(destinationInput, startDate, endDate) {
+  const parsed = parseDestinationInput(destinationInput);
+  if (!parsed) return null;
+
+  const country = findCountryMatch(parsed.country);
+
+  return {
+    id: genId(),
+    city: parsed.city,
+    country: parsed.country,
+    countryCode: country?.code ?? '',
+    arrivalDate: startDate,
+    departureDate: endDate,
+    currency: country?.currency ?? '',
+    currencyCode: country?.currencyCode ?? '',
+    currencyNotes: '',
+    plugTypes: country?.plugTypes ?? [],
+    voltage: country?.voltage ?? ''
+  };
+}
+
 document.getElementById('form-new-trip').addEventListener('submit', e => {
   e.preventDefault();
   const name = document.getElementById('nt-name').value.trim();
@@ -242,12 +330,16 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
   const days = buildDays(tripId, startDate, nights);
   const checklistItems = buildInitialChecklist(tripId, nights, profile.personalEssentials, profile.clothingDefaults ?? {});
 
+  // Create destination object from the destination input
+  const destinationObj = createDestinationFromInput(destination, startDate, endDate);
+  const destinations = destinationObj ? [destinationObj] : [];
+
   const trip = {
     id: tripId, name, destination, departFrom, startDate, endDate, nights,
     template: template ?? 'custom', status: 'active',
     createdAt: new Date().toISOString(), archivedAt: null,
     clothingOverrides: null, days, checklistItems, itineraryEvents: [],
-    destinations: [], origin: { city: departFrom ?? '', country: 'USA' },
+    destinations, origin: { city: departFrom ?? '', country: 'USA' },
     travelDocuments: { passport: { name: '', expiryDate: '' }, insurance: { hasInsurance: false, provider: '', policyNumber: '', notes: '' }, customReminders: [], dismissedVisaReminders: [] },
     laundryPlan: { enabled: false, everyXDays: 7 },
     dismissedIntlSuggestions: [],
