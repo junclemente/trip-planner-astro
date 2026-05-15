@@ -12,7 +12,7 @@ export const RECOMMENDED_DEFAULTS = [
   { text: 'Toothbrush',      suggestedCategory: 'toiletries' },
   { text: 'Toothpaste',      suggestedCategory: 'toiletries' },
   { text: 'Deodorant',       suggestedCategory: 'toiletries' },
-  { text: 'Chapstick',       suggestedCategory: 'toiletries' },
+  { text: 'Lip Balm',        suggestedCategory: 'toiletries' },
   { text: 'Phone + Charger', suggestedCategory: null },
   { text: 'Wallet + ID',     suggestedCategory: null },
 ];

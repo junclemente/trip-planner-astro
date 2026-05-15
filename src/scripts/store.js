@@ -53,11 +53,11 @@ export function unarchiveTrip(id) {
 export function getProfile() {
   try {
     const stored = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
-    const defaults = { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {} };
+    const defaults = { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {}, globalPeople: [] };
     if (!stored) return defaults;
     return { ...defaults, ...stored };
   } catch {
-    return { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {} };
+    return { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {}, globalPeople: [] };
   }
 }
 

@@ -20,9 +20,10 @@ import Layout from '../layouts/Layout.astro';
 
     <!-- Tabs -->
     <div class="flex border-t border-gray-100 max-w-lg mx-auto">
-      <button class="tab-btn active" data-tab="packing">Packing List</button>
-      <button class="tab-btn" data-tab="itinerary">Itinerary</button>
-      <button class="tab-btn" data-tab="info">Info</button>
+      <button class="tab-btn active" style="font-size:0.75rem" data-tab="packing">Packing</button>
+      <button class="tab-btn" style="font-size:0.75rem" data-tab="itinerary">Itinerary</button>
+      <button class="tab-btn" style="font-size:0.75rem" data-tab="info">Info</button>
+      <button class="tab-btn" style="font-size:0.75rem" data-tab="expenses">Expenses</button>
     </div>
   </header>
 
@@ -31,6 +32,7 @@ import Layout from '../layouts/Layout.astro';
     <div id="tab-packing"   class="tab-panel"></div>
     <div id="tab-itinerary" class="tab-panel hidden"></div>
     <div id="tab-info"      class="tab-panel hidden px-4 py-4 space-y-4"></div>
+    <div id="tab-expenses"  class="tab-panel hidden"></div>
   </main>
 
   <!-- ── Add / Edit Item Modal ── -->
@@ -49,15 +51,11 @@ import Layout from '../layouts/Layout.astro';
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
-          <select id="item-category" class="input">
-            <option value="">— None —</option>
-          </select>
+          <select id="item-category" class="input"><option value="">— None —</option></select>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-          <select id="item-priority" class="input">
-            <option value="">— None —</option>
-          </select>
+          <select id="item-priority" class="input"><option value="">— None —</option></select>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
@@ -130,6 +128,134 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </div>
 
+  <!-- ── Add / Edit Expense Modal ── -->
+  <div id="modal-expense" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="flex items-center justify-between p-4 border-b flex-shrink-0">
+        <h2 id="modal-expense-title" class="text-lg font-bold">Add Expense</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-expense">&times;</button>
+      </div>
+      <div class="overflow-y-auto" style="max-height:calc(100vh - 160px)">
+        <form id="form-expense" class="p-4 space-y-3">
+          <input type="hidden" id="expense-edit-id" />
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+            <input id="exp-description" type="text" class="input" placeholder="e.g. Dinner at Joe's" required />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                <input id="exp-amount" type="number" min="0" step="0.01" class="input pl-6"
+                       placeholder="0.00" required />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <input id="exp-date" type="date" class="input" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select id="exp-category" class="input">
+                <option value="food">Food &amp; Drink</option>
+                <option value="transport">Transport</option>
+                <option value="accommodation">Accommodation</option>
+                <option value="entertainment">Entertainment</option>
+                <option value="shopping">Shopping</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Paid by *</label>
+              <select id="exp-paid-by" class="input"></select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Venue / Note <span class="text-xs text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input id="exp-venue" type="text" class="input" placeholder="e.g. Restaurant name, receipt note" />
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-sm font-medium text-gray-700">Split between</label>
+              <button type="button" id="exp-select-all"
+                      class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Select All</button>
+            </div>
+            <div id="exp-split-list" class="border border-gray-200 rounded-lg p-2.5 space-y-0.5"></div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-sm font-medium text-gray-700">Split method</label>
+              <span id="exp-per-person" class="text-xs text-indigo-600 font-medium"></span>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" id="exp-split-equal" class="btn-primary flex-1 text-sm py-1.5">Equal</button>
+              <button type="button" id="exp-split-custom" class="btn-secondary flex-1 text-sm py-1.5">Custom</button>
+            </div>
+          </div>
+          <!-- Custom amounts (shown when method = custom) -->
+          <div id="exp-custom-amounts" class="hidden border border-gray-200 rounded-lg p-3 space-y-2.5 bg-gray-50">
+            <div id="exp-custom-list" class="space-y-2"></div>
+            <div class="flex justify-between items-center pt-1.5 border-t border-gray-200 text-sm">
+              <span id="exp-remaining-label" class="text-gray-500 text-xs">remaining</span>
+              <span id="exp-remaining" class="font-semibold text-amber-600 text-sm">$0.00</span>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-1">
+            <button type="button" class="close-modal btn-secondary flex-1" data-modal="modal-expense">Cancel</button>
+            <button type="submit" class="btn-primary flex-1">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settle Up Modal ── -->
+  <div id="modal-settle" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 class="text-lg font-bold">Settle Up</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-settle">&times;</button>
+      </div>
+      <div id="settle-content" class="p-4 overflow-y-auto" style="max-height:calc(100vh - 120px)"></div>
+    </div>
+  </div>
+
+  <!-- ── Add Member Modal ── -->
+  <div id="modal-member" class="modal-overlay hidden">
+    <div class="modal-box max-w-sm">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 class="text-lg font-bold">Add Member</h2>
+        <button class="close-modal text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-modal="modal-member">&times;</button>
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">From My People</p>
+          <div id="member-import-list" class="flex flex-wrap gap-2 min-h-[1rem]"></div>
+          <p id="member-import-empty" class="text-xs text-gray-400 italic hidden">All saved people are already in this trip.</p>
+        </div>
+        <div class="border-t border-gray-100 pt-3">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Add New</p>
+          <form id="form-member-new" class="space-y-2">
+            <input id="member-new-name" type="text" class="input" placeholder="Name" />
+            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" id="member-save-global" class="h-4 w-4 rounded text-indigo-600" />
+              Save to My People list
+            </label>
+            <button type="submit" class="btn-primary w-full text-sm py-2">Add to Trip</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Confirm Modal ── -->
   <div id="modal-confirm" class="modal-overlay hidden">
     <div class="modal-box max-w-sm">
@@ -150,7 +276,7 @@ import Layout from '../layouts/Layout.astro';
 <script>
 import {
   genId, getTrip, saveTrip, deleteTrip, archiveTrip, unarchiveTrip, exportTrip,
-  getProfile, duplicateTrip,
+  getProfile, saveProfile, duplicateTrip,
 } from '../scripts/store.js';
 import {
   getAllCategories, getAllPriorities, getCategoryColor, getPriorityColor,
@@ -171,9 +297,13 @@ if (migrateChecklistItems(trip.checklistItems ?? [])) saveTrip(trip);
 let profile = getProfile();
 const readonly = trip.status === 'archived';
 
+// filter state
 let activeCategory = null;
 let activePriority = null;
-let editingSection = null; // 'basics' | 'flight' | 'hotel' | 'transport'
+let editingSection = null;
+let expCategoryFilter = null;
+let expPersonFilter = null;
+let expSplitMethod = 'equal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -183,6 +313,8 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function fmt(n) { return `$${(+n || 0).toFixed(2)}`; }
+
 function reload() {
   trip = getTrip(tripId);
   profile = getProfile();
@@ -190,6 +322,7 @@ function reload() {
   renderPackingList();
   renderItinerary();
   renderInfo();
+  renderExpenses();
 }
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
@@ -200,10 +333,8 @@ let currentTab = 'packing';
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    if (btn.dataset.tab !== 'packing') {
-      activeCategory = null;
-      activePriority = null;
-    }
+    if (btn.dataset.tab !== 'packing')  { activeCategory = null; activePriority = null; }
+    if (btn.dataset.tab !== 'expenses') { expCategoryFilter = null; expPersonFilter = null; }
     currentTab = btn.dataset.tab;
     tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
     tabPanels.forEach(p => p.classList.toggle('hidden', p.id !== `tab-${currentTab}`));
@@ -223,7 +354,8 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    ['modal-item', 'modal-event', 'modal-confirm', 'modal-suggest-events'].forEach(closeModal);
+    ['modal-item','modal-event','modal-confirm','modal-suggest-events',
+     'modal-expense','modal-settle','modal-member'].forEach(closeModal);
   }
 });
 
@@ -235,16 +367,9 @@ function confirmAction(icon, title, msg, okLabel, okClass, onOk) {
   okBtn.textContent = okLabel;
   okBtn.className = okClass + ' flex-1';
   openModal('modal-confirm');
-  const handler = () => {
-    closeModal('modal-confirm');
-    onOk();
-    okBtn.removeEventListener('click', handler);
-  };
+  const handler = () => { closeModal('modal-confirm'); onOk(); okBtn.removeEventListener('click', handler); };
   okBtn.addEventListener('click', handler);
-  document.getElementById('confirm-cancel').onclick = () => {
-    closeModal('modal-confirm');
-    okBtn.removeEventListener('click', handler);
-  };
+  document.getElementById('confirm-cancel').onclick = () => { closeModal('modal-confirm'); okBtn.removeEventListener('click', handler); };
 }
 
 // ── Header ───────────────────────────────────────────────────────────────────
@@ -271,11 +396,9 @@ function renderHeader() {
         <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
       </svg>
     </button>`;
-
   document.getElementById('btn-export-trip').addEventListener('click', () => exportTrip(trip));
   document.getElementById('btn-archive-trip').addEventListener('click', () => {
-    confirmAction('📦', 'Archive this trip?',
-      'The trip will be frozen as a read-only snapshot in the Archive.',
+    confirmAction('📦', 'Archive this trip?', 'The trip will be frozen as a read-only snapshot in the Archive.',
       'Archive', 'btn-secondary',
       () => { archiveTrip(tripId); window.showToast?.('Trip archived'); setTimeout(() => location.replace(`${BASE}archive/`), 600); });
   });
@@ -286,73 +409,52 @@ function renderHeader() {
 function buildFilterBar(items) {
   const allCats = getAllCategories(profile.customCategories);
   const allPris = getAllPriorities(profile.customPriorities);
-
   const catCounts = {}, priCounts = {};
   items.forEach(item => {
     if (item.category) catCounts[item.category] = (catCounts[item.category] ?? 0) + 1;
     if (item.priority) priCounts[item.priority] = (priCounts[item.priority] ?? 0) + 1;
   });
-
-  const catIds = Object.keys(catCounts);
-  const priIds = Object.keys(priCounts);
-  if (catIds.length === 0 && priIds.length === 0) return '';
+  const catIds = Object.keys(catCounts), priIds = Object.keys(priCounts);
+  if (!catIds.length && !priIds.length) return '';
 
   const catBtn = id => {
-    const tag = allCats.find(c => c.id === id);
-    if (!tag) return '';
-    const isActive = activeCategory === id;
-    const cls = isActive ? tag.color + ' ring-1 ring-inset ring-current' : 'bg-gray-100 text-gray-600';
-    return `<button class="filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${cls}" data-cat="${esc(id)}">${esc(tag.label)} <span class="font-normal">${catCounts[id]}</span></button>`;
+    const tag = allCats.find(c => c.id === id); if (!tag) return '';
+    const cls = activeCategory === id ? tag.color + ' ring-1 ring-inset ring-current' : 'bg-gray-100 text-gray-600';
+    return `<button class="filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${cls}" data-cat="${esc(id)}">${esc(tag.label)} <span class="font-normal">${catCounts[id]}</span></button>`;
   };
   const priBtn = id => {
-    const tag = allPris.find(p => p.id === id);
-    if (!tag) return '';
-    const isActive = activePriority === id;
-    const cls = isActive ? tag.color + ' ring-1 ring-inset ring-current' : 'bg-gray-100 text-gray-600';
-    return `<button class="filter-pri text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${cls}" data-pri="${esc(id)}">${esc(tag.label)} <span class="font-normal">${priCounts[id]}</span></button>`;
+    const tag = allPris.find(p => p.id === id); if (!tag) return '';
+    const cls = activePriority === id ? tag.color + ' ring-1 ring-inset ring-current' : 'bg-gray-100 text-gray-600';
+    return `<button class="filter-pri text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${cls}" data-pri="${esc(id)}">${esc(tag.label)} <span class="font-normal">${priCounts[id]}</span></button>`;
   };
-
   const hasFilter = activeCategory !== null || activePriority !== null;
-  const filteredCount = items.filter(i =>
-    (activeCategory === null || i.category === activeCategory) &&
-    (activePriority === null || i.priority === activePriority)
-  ).length;
+  const filteredCount = items.filter(i => (activeCategory === null || i.category === activeCategory) && (activePriority === null || i.priority === activePriority)).length;
 
-  return `
-    <div class="px-4 pb-2 space-y-1.5">
-      ${catIds.length > 0 ? `
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
-        <button class="filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${activeCategory === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}" data-cat="">All</button>
-        ${catIds.map(catBtn).join('')}
-      </div>` : ''}
-      ${priIds.length > 0 ? `
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
-        <button class="filter-pri text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 transition-colors ${activePriority === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}" data-pri="">All</button>
-        ${priIds.map(priBtn).join('')}
-      </div>` : ''}
-      ${hasFilter ? `<p class="text-xs text-indigo-600 font-medium">${filteredCount} item${filteredCount !== 1 ? 's' : ''} shown</p>` : ''}
-    </div>`;
+  return `<div class="px-4 pb-2 space-y-1.5">
+    ${catIds.length ? `<div class="flex gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
+      <button class="filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${activeCategory === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}" data-cat="">All</button>
+      ${catIds.map(catBtn).join('')}</div>` : ''}
+    ${priIds.length ? `<div class="flex gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
+      <button class="filter-pri text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${activePriority === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}" data-pri="">All</button>
+      ${priIds.map(priBtn).join('')}</div>` : ''}
+    ${hasFilter ? `<p class="text-xs text-indigo-600 font-medium">${filteredCount} item${filteredCount !== 1 ? 's' : ''} shown</p>` : ''}
+  </div>`;
 }
 
 function renderPackingList() {
   const panel = document.getElementById('tab-packing');
   const items = trip.checklistItems ?? [];
-  const total = items.length;
-  const checked = items.filter(i => i.checked).length;
+  const total = items.length, checked = items.filter(i => i.checked).length;
   const pct = total === 0 ? 0 : Math.round((checked / total) * 100);
-
   const visibleItems = items.filter(item =>
     (activeCategory === null || item.category === activeCategory) &&
-    (activePriority === null || item.priority === activePriority)
-  );
+    (activePriority === null || item.priority === activePriority));
 
   panel.innerHTML = `
     <div class="sticky top-[97px] bg-white border-b border-gray-100 z-20">
       <div class="px-4 py-2 flex items-center justify-between gap-4">
         <div class="flex-1">
-          <div class="flex justify-between text-xs text-gray-500 mb-1">
-            <span>${checked}/${total} packed</span><span>${pct}%</span>
-          </div>
+          <div class="flex justify-between text-xs text-gray-500 mb-1"><span>${checked}/${total} packed</span><span>${pct}%</span></div>
           <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" style="width:${pct}%"></div>
           </div>
@@ -378,13 +480,9 @@ function renderPackingList() {
 }
 
 function renderItemRow(item) {
-  const catTag = item.category
-    ? `<span class="badge ${getCategoryColor(item.category, profile.customCategories)} ml-1">${esc(getCategoryLabel(item.category, profile.customCategories))}</span>` : '';
-  const priTag = item.priority
-    ? `<span class="badge ${getPriorityColor(item.priority, profile.customPriorities)} ml-1">${esc(getPriorityLabel(item.priority, profile.customPriorities))}</span>` : '';
-  const neededDay = item.neededOnDay
-    ? `<span class="text-xs text-gray-400 block mt-0.5">📅 ${esc(item.neededOnDay)}</span>` : '';
-
+  const catTag = item.category ? `<span class="badge ${getCategoryColor(item.category, profile.customCategories)} ml-1">${esc(getCategoryLabel(item.category, profile.customCategories))}</span>` : '';
+  const priTag = item.priority ? `<span class="badge ${getPriorityColor(item.priority, profile.customPriorities)} ml-1">${esc(getPriorityLabel(item.priority, profile.customPriorities))}</span>` : '';
+  const neededDay = item.neededOnDay ? `<span class="text-xs text-gray-400 block mt-0.5">📅 ${esc(item.neededOnDay)}</span>` : '';
   const qtyBlock = item.isClothing
     ? `<div class="flex items-center gap-1 flex-shrink-0 ml-1">
         ${!readonly ? `<button data-clothing-dec="${esc(item.id)}" class="w-6 h-6 rounded-full bg-gray-100 hover:bg-orange-100 text-gray-600 hover:text-orange-700 text-sm font-bold flex items-center justify-center transition-colors leading-none">−</button>` : ''}
@@ -392,16 +490,11 @@ function renderItemRow(item) {
         ${!readonly ? `<button data-clothing-inc="${esc(item.id)}" class="w-6 h-6 rounded-full bg-gray-100 hover:bg-orange-100 text-gray-600 hover:text-orange-700 text-sm font-bold flex items-center justify-center transition-colors leading-none">+</button>` : ''}
       </div>`
     : (item.quantity != null ? `<span class="text-xs text-gray-400 ml-1 flex-shrink-0">×${item.quantity}</span>` : '');
-
   const editBtn = !readonly ? `
-    <button data-edit-item="${esc(item.id)}"
-            class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-0.5" title="Edit">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-      </svg>
+    <button data-edit-item="${esc(item.id)}" class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-0.5" title="Edit">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
     </button>
-    <button data-del-item="${esc(item.id)}"
-            class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all p-0.5 text-base leading-none" title="Delete">×</button>` : '';
+    <button data-del-item="${esc(item.id)}" class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all p-0.5 text-base leading-none" title="Delete">×</button>` : '';
 
   return `
     <li class="group flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 border-b border-gray-50 transition-colors ${item.checked ? 'opacity-60' : ''}">
@@ -412,8 +505,7 @@ function renderItemRow(item) {
       <div class="flex-1 min-w-0">
         <div class="flex items-center flex-wrap gap-x-0.5">
           <span class="text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}">${esc(item.text)}</span>
-          ${!item.isClothing ? qtyBlock : ''}
-          ${catTag}${priTag}
+          ${!item.isClothing ? qtyBlock : ''}${catTag}${priTag}
         </div>
         ${neededDay}
       </div>
@@ -428,45 +520,36 @@ function adjustClothingQty(itemId, delta) {
   item.quantity = Math.max(0, (item.quantity ?? 0) + delta);
   if (!trip.clothingOverrides) trip.clothingOverrides = {};
   trip.clothingOverrides[item.clothingType] = item.quantity;
-  saveTrip(trip);
-  renderPackingList();
+  saveTrip(trip); renderPackingList();
 }
 
 function toggleItem(itemId) {
   const item = trip.checklistItems.find(i => i.id === itemId);
   if (!item) return;
   item.checked = !item.checked;
-  saveTrip(trip);
-  renderPackingList();
+  saveTrip(trip); renderPackingList();
 }
 
 function deleteItem(itemId) {
   trip.checklistItems = trip.checklistItems.filter(i => i.id !== itemId);
-  saveTrip(trip);
-  renderPackingList();
-  window.showToast?.('Item removed');
+  saveTrip(trip); renderPackingList(); window.showToast?.('Item removed');
 }
 
 // ── Item Modal ───────────────────────────────────────────────────────────────
 
 function populateTagSelects(selectedCategory = null, selectedPriority = null) {
-  const allCats = getAllCategories(profile.customCategories);
-  const allPris = getAllPriorities(profile.customPriorities);
-
   document.getElementById('item-category').innerHTML =
     `<option value="">— None —</option>` +
-    allCats.map(c => `<option value="${esc(c.id)}" ${c.id === selectedCategory ? 'selected' : ''}>${esc(c.label)}</option>`).join('');
-
+    getAllCategories(profile.customCategories).map(c => `<option value="${esc(c.id)}" ${c.id === selectedCategory ? 'selected' : ''}>${esc(c.label)}</option>`).join('');
   document.getElementById('item-priority').innerHTML =
     `<option value="">— None —</option>` +
-    allPris.map(p => `<option value="${esc(p.id)}" ${p.id === selectedPriority ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
+    getAllPriorities(profile.customPriorities).map(p => `<option value="${esc(p.id)}" ${p.id === selectedPriority ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
 }
 
 function openItemModal(editItemId = null) {
   document.getElementById('form-item').reset();
   document.getElementById('item-edit-id').value = '';
   document.getElementById('modal-item-title').textContent = editItemId ? 'Edit Item' : 'Add Item';
-
   if (editItemId) {
     const item = trip.checklistItems.find(i => i.id === editItemId);
     if (item) {
@@ -476,10 +559,7 @@ function openItemModal(editItemId = null) {
       document.getElementById('item-needed-day').value = item.neededOnDay ?? '';
       populateTagSelects(item.category, item.priority);
     }
-  } else {
-    populateTagSelects();
-  }
-
+  } else { populateTagSelects(); }
   openModal('modal-item');
   setTimeout(() => document.getElementById('item-text').focus(), 50);
 }
@@ -493,16 +573,13 @@ document.getElementById('form-item').addEventListener('submit', e => {
   const qtyVal = document.getElementById('item-qty').value;
   const quantity = qtyVal ? parseInt(qtyVal) : null;
   const neededOnDay = document.getElementById('item-needed-day').value.trim() || null;
-
   if (editId) {
     const item = trip.checklistItems.find(i => i.id === editId);
     if (item) Object.assign(item, { text, category, priority, quantity, neededOnDay });
   } else {
     trip.checklistItems.push({ id: genId(), tripId, dayId: null, text, category, priority, checked: false, quantity, neededOnDay });
   }
-  saveTrip(trip);
-  closeModal('modal-item');
-  renderPackingList();
+  saveTrip(trip); closeModal('modal-item'); renderPackingList();
   window.showToast?.(editId ? 'Item updated' : 'Item added');
 });
 
@@ -517,26 +594,22 @@ function renderItinerary() {
   trip.days.forEach(d => byDay[d.id].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')));
 
   panel.innerHTML = `
-    ${!readonly ? `
-    <div class="px-4 py-3 border-b border-gray-100 flex justify-end">
+    ${!readonly ? `<div class="px-4 py-3 border-b border-gray-100 flex justify-end">
       <button id="btn-add-event-top" class="btn-primary text-xs py-1.5 px-3">+ Add Event</button>
     </div>` : ''}
     ${trip.days.map(day => {
       const dayEvents = byDay[day.id] ?? [];
-      return `
-        <div class="mb-2">
-          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
-            <div>
-              <span class="text-sm font-semibold text-gray-800">${esc(day.label)}</span>
-              <span class="text-xs text-gray-400 ml-1.5">${formatDate(day.date)}</span>
-            </div>
-            ${!readonly ? `<button class="add-event-day text-xs text-indigo-600 hover:text-indigo-800 font-medium" data-day-id="${esc(day.id)}">+ Event</button>` : ''}
-          </div>
-          <div class="divide-y divide-gray-50">
-            ${dayEvents.map(ev => renderEventRow(ev)).join('')}
-            ${dayEvents.length === 0 ? `<div class="px-4 py-3 text-xs text-gray-400 italic">No events</div>` : ''}
-          </div>
-        </div>`;
+      return `<div class="mb-2">
+        <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+          <div><span class="text-sm font-semibold text-gray-800">${esc(day.label)}</span>
+            <span class="text-xs text-gray-400 ml-1.5">${formatDate(day.date)}</span></div>
+          ${!readonly ? `<button class="add-event-day text-xs text-indigo-600 hover:text-indigo-800 font-medium" data-day-id="${esc(day.id)}">+ Event</button>` : ''}
+        </div>
+        <div class="divide-y divide-gray-50">
+          ${dayEvents.map(ev => renderEventRow(ev)).join('')}
+          ${dayEvents.length === 0 ? `<div class="px-4 py-3 text-xs text-gray-400 italic">No events</div>` : ''}
+        </div>
+      </div>`;
     }).join('')}`;
 
   panel.querySelector('#btn-add-event-top')?.addEventListener('click', () => openEventModal());
@@ -551,24 +624,19 @@ function renderEventRow(ev) {
       <button data-edit-event="${esc(ev.id)}" class="btn-ghost p-1 text-xs" title="Edit">✏️</button>
       <button data-del-event="${esc(ev.id)}" class="btn-ghost p-1 text-xs text-red-400 hover:text-red-600" title="Delete">×</button>
     </div>` : '';
-  return `
-    <div class="group flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-      <div class="flex-shrink-0 w-14 text-right">
-        <span class="text-xs font-mono text-indigo-600 font-medium">${ev.time ? esc(ev.time) : '—'}</span>
-      </div>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium text-gray-900">${esc(ev.title)}</p>
-        ${ev.notes ? `<p class="text-xs text-gray-500 mt-0.5">${esc(ev.notes)}</p>` : ''}
-      </div>
-      ${editDel}
-    </div>`;
+  return `<div class="group flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+    <div class="flex-shrink-0 w-14 text-right"><span class="text-xs font-mono text-indigo-600 font-medium">${ev.time ? esc(ev.time) : '—'}</span></div>
+    <div class="flex-1 min-w-0">
+      <p class="text-sm font-medium text-gray-900">${esc(ev.title)}</p>
+      ${ev.notes ? `<p class="text-xs text-gray-500 mt-0.5">${esc(ev.notes)}</p>` : ''}
+    </div>
+    ${editDel}
+  </div>`;
 }
 
 function deleteEvent(eventId) {
   trip.itineraryEvents = trip.itineraryEvents.filter(e => e.id !== eventId);
-  saveTrip(trip);
-  renderItinerary();
-  window.showToast?.('Event removed');
+  saveTrip(trip); renderItinerary(); window.showToast?.('Event removed');
 }
 
 // ── Event Modal ──────────────────────────────────────────────────────────────
@@ -577,12 +645,8 @@ function openEventModal(preselectedDayId = null, editEventId = null) {
   document.getElementById('form-event').reset();
   document.getElementById('event-edit-id').value = '';
   document.getElementById('modal-event-title').textContent = editEventId ? 'Edit Event' : 'Add Event';
-
-  const daySelect = document.getElementById('event-day');
-  daySelect.innerHTML = trip.days.map(d =>
-    `<option value="${esc(d.id)}" ${d.id === preselectedDayId ? 'selected' : ''}>${esc(d.label)}</option>`
-  ).join('');
-
+  document.getElementById('event-day').innerHTML = trip.days.map(d =>
+    `<option value="${esc(d.id)}" ${d.id === preselectedDayId ? 'selected' : ''}>${esc(d.label)}</option>`).join('');
   if (editEventId) {
     const ev = trip.itineraryEvents.find(e => e.id === editEventId);
     if (ev) {
@@ -604,7 +668,6 @@ document.getElementById('form-event').addEventListener('submit', e => {
   const dayId = document.getElementById('event-day').value;
   const time = document.getElementById('event-time').value;
   const notes = document.getElementById('event-notes').value.trim();
-
   if (editId) {
     const ev = trip.itineraryEvents.find(e => e.id === editId);
     if (ev) Object.assign(ev, { title, dayId, time, notes });
@@ -612,9 +675,7 @@ document.getElementById('form-event').addEventListener('submit', e => {
     if (!trip.itineraryEvents) trip.itineraryEvents = [];
     trip.itineraryEvents.push({ id: genId(), tripId, dayId, time, title, notes });
   }
-  saveTrip(trip);
-  closeModal('modal-event');
-  renderItinerary();
+  saveTrip(trip); closeModal('modal-event'); renderItinerary();
   window.showToast?.(editId ? 'Event updated' : 'Event added');
 });
 
@@ -635,6 +696,7 @@ function renderInfo() {
     renderInfoFlight() +
     renderInfoHotel() +
     renderInfoTransport() +
+    renderInfoMembers() +
     renderInfoActions();
   attachInfoListeners();
 }
@@ -644,22 +706,16 @@ function renderInfoBasics() {
     return `<div class="card p-4">
       <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Trip Basics</h3>
       <div class="space-y-2.5">
-        <div><label class="block text-xs text-gray-500 mb-1">Trip Name</label>
-          <input id="info-name" class="input text-sm" value="${esc(trip.name)}" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Destination</label>
-          <input id="info-destination" class="input text-sm" value="${esc(trip.destination)}" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Origin City</label>
-          <input id="info-origin" class="input text-sm" value="${esc(trip.departFrom ?? '')}" placeholder="e.g. San Diego, CA" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Trip Name</label><input id="info-name" class="input text-sm" value="${esc(trip.name)}" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Destination</label><input id="info-destination" class="input text-sm" value="${esc(trip.destination)}" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Origin City</label><input id="info-origin" class="input text-sm" value="${esc(trip.departFrom ?? '')}" placeholder="e.g. San Diego, CA" /></div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Start Date</label>
-            <input id="info-start" type="date" class="input text-sm" value="${trip.startDate}" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">End Date</label>
-            <input id="info-end" type="date" class="input text-sm" value="${trip.endDate}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Start Date</label><input id="info-start" type="date" class="input text-sm" value="${trip.startDate}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">End Date</label><input id="info-end" type="date" class="input text-sm" value="${trip.endDate}" /></div>
         </div>
         <p id="info-nights-calc" class="text-xs text-gray-500">Nights: <strong>${trip.nights}</strong> (auto-calculated)</p>
         <p class="text-xs text-gray-400">Template: ${esc(TEMPLATES[trip.template]?.label ?? trip.template)} (read-only)</p>
-        <div><label class="block text-xs text-gray-500 mb-1">Notes</label>
-          <textarea id="info-notes" class="input text-sm resize-none" rows="3" placeholder="Trip notes...">${esc(trip.notes ?? '')}</textarea></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Notes</label><textarea id="info-notes" class="input text-sm resize-none" rows="3" placeholder="Trip notes...">${esc(trip.notes ?? '')}</textarea></div>
       </div>
       <div class="flex gap-2 mt-3">
         <button class="info-cancel btn-secondary flex-1 text-sm py-2">Cancel</button>
@@ -683,45 +739,33 @@ function renderInfoBasics() {
 }
 
 function renderInfoFlight() {
-  const fo = trip.flightOut ?? {};
-  const fr = trip.flightReturn ?? {};
-
+  const fo = trip.flightOut ?? {}, fr = trip.flightReturn ?? {};
   if (editingSection === 'flight') {
     return `<div class="card p-4">
       <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Flight Details</h3>
-      <p class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Outbound</p>
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outbound</p>
       <div class="space-y-2 mb-4">
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Airline</label>
-            <input id="fo-airline" class="input text-sm" value="${esc(fo.airline ?? '')}" placeholder="e.g. Southwest" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">Flight #</label>
-            <input id="fo-number" class="input text-sm" value="${esc(fo.flightNumber ?? '')}" placeholder="WN 1234" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Airline</label><input id="fo-airline" class="input text-sm" value="${esc(fo.airline ?? '')}" placeholder="Southwest" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Flight #</label><input id="fo-number" class="input text-sm" value="${esc(fo.flightNumber ?? '')}" placeholder="WN 1234" /></div>
         </div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Departs</label>
-            <input id="fo-depart" type="time" class="input text-sm" value="${fo.departTime ?? ''}" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">Arrives</label>
-            <input id="fo-arrive" type="time" class="input text-sm" value="${fo.arriveTime ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Departs</label><input id="fo-depart" type="time" class="input text-sm" value="${fo.departTime ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Arrives</label><input id="fo-arrive" type="time" class="input text-sm" value="${fo.arriveTime ?? ''}" /></div>
         </div>
-        <div><label class="block text-xs text-gray-500 mb-1">Confirmation #</label>
-          <input id="fo-confirm" class="input text-sm" value="${esc(fo.confirmation ?? '')}" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Confirmation #</label><input id="fo-confirm" class="input text-sm" value="${esc(fo.confirmation ?? '')}" /></div>
       </div>
-      <p class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Return</p>
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Return</p>
       <div class="space-y-2">
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Airline</label>
-            <input id="fr-airline" class="input text-sm" value="${esc(fr.airline ?? '')}" placeholder="e.g. Southwest" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">Flight #</label>
-            <input id="fr-number" class="input text-sm" value="${esc(fr.flightNumber ?? '')}" placeholder="WN 5678" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Airline</label><input id="fr-airline" class="input text-sm" value="${esc(fr.airline ?? '')}" placeholder="Southwest" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Flight #</label><input id="fr-number" class="input text-sm" value="${esc(fr.flightNumber ?? '')}" placeholder="WN 5678" /></div>
         </div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Departs</label>
-            <input id="fr-depart" type="time" class="input text-sm" value="${fr.departTime ?? ''}" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">Arrives</label>
-            <input id="fr-arrive" type="time" class="input text-sm" value="${fr.arriveTime ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Departs</label><input id="fr-depart" type="time" class="input text-sm" value="${fr.departTime ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Arrives</label><input id="fr-arrive" type="time" class="input text-sm" value="${fr.arriveTime ?? ''}" /></div>
         </div>
-        <div><label class="block text-xs text-gray-500 mb-1">Confirmation #</label>
-          <input id="fr-confirm" class="input text-sm" value="${esc(fr.confirmation ?? '')}" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Confirmation #</label><input id="fr-confirm" class="input text-sm" value="${esc(fr.confirmation ?? '')}" /></div>
       </div>
       <div class="flex gap-2 mt-3">
         <button class="info-cancel btn-secondary flex-1 text-sm py-2">Cancel</button>
@@ -729,8 +773,7 @@ function renderInfoFlight() {
       </div>
     </div>`;
   }
-
-  const hasOut  = fo.airline || fo.flightNumber || fo.departTime;
+  const hasOut = fo.airline || fo.flightNumber || fo.departTime;
   const hasReturn = fr.airline || fr.flightNumber || fr.departTime;
   return `<div class="card p-4">
     <div class="flex items-center justify-between mb-3">
@@ -739,16 +782,12 @@ function renderInfoFlight() {
     </div>
     ${hasOut || hasReturn ? `
       <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Outbound</p>
-      ${infoRow('Airline', fo.airline, 'Not set')}
-      ${infoRow('Flight #', fo.flightNumber, 'Not set')}
-      ${infoRow('Departs', fo.departTime, 'Not set')}
-      ${infoRow('Arrives', fo.arriveTime, 'Not set')}
+      ${infoRow('Airline', fo.airline, 'Not set')}${infoRow('Flight #', fo.flightNumber, 'Not set')}
+      ${infoRow('Departs', fo.departTime, 'Not set')}${infoRow('Arrives', fo.arriveTime, 'Not set')}
       ${infoRow('Confirmation', fo.confirmation, 'Not set')}
       <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1">Return</p>
-      ${infoRow('Airline', fr.airline, 'Not set')}
-      ${infoRow('Flight #', fr.flightNumber, 'Not set')}
-      ${infoRow('Departs', fr.departTime, 'Not set')}
-      ${infoRow('Arrives', fr.arriveTime, 'Not set')}
+      ${infoRow('Airline', fr.airline, 'Not set')}${infoRow('Flight #', fr.flightNumber, 'Not set')}
+      ${infoRow('Departs', fr.departTime, 'Not set')}${infoRow('Arrives', fr.arriveTime, 'Not set')}
       ${infoRow('Confirmation', fr.confirmation, 'Not set')}
     ` : `<p class="text-sm text-gray-400 italic">No flight details yet. Tap Edit to add.</p>`}
   </div>`;
@@ -756,31 +795,22 @@ function renderInfoFlight() {
 
 function renderInfoHotel() {
   const h = trip.hotel ?? {};
-
   if (editingSection === 'hotel') {
     return `<div class="card p-4">
       <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Hotel</h3>
       <div class="space-y-2">
-        <div><label class="block text-xs text-gray-500 mb-1">Hotel Name</label>
-          <input id="h-name" class="input text-sm" value="${esc(h.name ?? '')}" placeholder="e.g. MGM Grand" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Address</label>
-          <input id="h-address" class="input text-sm" value="${esc(h.address ?? '')}" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Hotel Name</label><input id="h-name" class="input text-sm" value="${esc(h.name ?? '')}" placeholder="MGM Grand" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Address</label><input id="h-address" class="input text-sm" value="${esc(h.address ?? '')}" /></div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Check-in Date</label>
-            <input id="h-checkin-date" type="date" class="input text-sm" value="${h.checkInDate ?? ''}" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">Check-in Time</label>
-            <input id="h-checkin-time" type="time" class="input text-sm" value="${h.checkInTime ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Check-in Date</label><input id="h-checkin-date" type="date" class="input text-sm" value="${h.checkInDate ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Check-in Time</label><input id="h-checkin-time" type="time" class="input text-sm" value="${h.checkInTime ?? ''}" /></div>
         </div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="block text-xs text-gray-500 mb-1">Check-out Date</label>
-            <input id="h-checkout-date" type="date" class="input text-sm" value="${h.checkOutDate ?? ''}" /></div>
-          <div><label class="block text-xs text-gray-500 mb-1">Check-out Time</label>
-            <input id="h-checkout-time" type="time" class="input text-sm" value="${h.checkOutTime ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Check-out Date</label><input id="h-checkout-date" type="date" class="input text-sm" value="${h.checkOutDate ?? ''}" /></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Check-out Time</label><input id="h-checkout-time" type="time" class="input text-sm" value="${h.checkOutTime ?? ''}" /></div>
         </div>
-        <div><label class="block text-xs text-gray-500 mb-1">Confirmation #</label>
-          <input id="h-confirm" class="input text-sm" value="${esc(h.confirmation ?? '')}" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Notes</label>
-          <textarea id="h-notes" class="input text-sm resize-none" rows="2">${esc(h.notes ?? '')}</textarea></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Confirmation #</label><input id="h-confirm" class="input text-sm" value="${esc(h.confirmation ?? '')}" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Notes</label><textarea id="h-notes" class="input text-sm resize-none" rows="2">${esc(h.notes ?? '')}</textarea></div>
       </div>
       <div class="flex gap-2 mt-3">
         <button class="info-cancel btn-secondary flex-1 text-sm py-2">Cancel</button>
@@ -788,20 +818,17 @@ function renderInfoHotel() {
       </div>
     </div>`;
   }
-
   const hasHotel = h.name || h.address;
-  const checkInStr  = h.checkInDate  ? `${h.checkInDate}${h.checkInTime  ? ' · ' + h.checkInTime  : ''}` : null;
-  const checkOutStr = h.checkOutDate ? `${h.checkOutDate}${h.checkOutTime ? ' · ' + h.checkOutTime : ''}` : null;
+  const ciStr = h.checkInDate ? `${h.checkInDate}${h.checkInTime ? ' · ' + h.checkInTime : ''}` : null;
+  const coStr = h.checkOutDate ? `${h.checkOutDate}${h.checkOutTime ? ' · ' + h.checkOutTime : ''}` : null;
   return `<div class="card p-4">
     <div class="flex items-center justify-between mb-3">
       <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Hotel</h3>
       ${!readonly ? `<button class="info-edit text-xs text-indigo-600 font-medium hover:text-indigo-800" data-section="hotel">Edit</button>` : ''}
     </div>
     ${hasHotel ? `
-      ${infoRow('Name', h.name)}
-      ${infoRow('Address', h.address, 'Not set')}
-      ${infoRow('Check-in', checkInStr, 'Not set')}
-      ${infoRow('Check-out', checkOutStr, 'Not set')}
+      ${infoRow('Name', h.name)}${infoRow('Address', h.address, 'Not set')}
+      ${infoRow('Check-in', ciStr, 'Not set')}${infoRow('Check-out', coStr, 'Not set')}
       ${infoRow('Confirmation', h.confirmation, 'Not set')}
       ${h.notes ? `<div class="mt-2 pt-2 border-t border-gray-50"><p class="text-xs text-gray-500 mb-0.5">Notes</p><p class="text-sm text-gray-800">${esc(h.notes)}</p></div>` : ''}
     ` : `<p class="text-sm text-gray-400 italic">No hotel details yet. Tap Edit to add.</p>`}
@@ -810,19 +837,14 @@ function renderInfoHotel() {
 
 function renderInfoTransport() {
   const t = trip.transport ?? {};
-
   if (editingSection === 'transport') {
     return `<div class="card p-4">
       <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Transport</h3>
       <div class="space-y-2">
-        <div><label class="block text-xs text-gray-500 mb-1">Getting There</label>
-          <input id="t-there" class="input text-sm" value="${esc(t.gettingThere ?? '')}" placeholder="e.g. Rideshare, Shuttle, Car" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Notes</label>
-          <textarea id="t-there-notes" class="input text-sm resize-none" rows="2" placeholder="Pickup time, address...">${esc(t.gettingThereNotes ?? '')}</textarea></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Getting Back</label>
-          <input id="t-back" class="input text-sm" value="${esc(t.gettingBack ?? '')}" placeholder="e.g. Rideshare, Car rental" /></div>
-        <div><label class="block text-xs text-gray-500 mb-1">Notes</label>
-          <textarea id="t-back-notes" class="input text-sm resize-none" rows="2">${esc(t.gettingBackNotes ?? '')}</textarea></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Getting There</label><input id="t-there" class="input text-sm" value="${esc(t.gettingThere ?? '')}" placeholder="Rideshare, Shuttle, Car" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Notes</label><textarea id="t-there-notes" class="input text-sm resize-none" rows="2" placeholder="Pickup time, address...">${esc(t.gettingThereNotes ?? '')}</textarea></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Getting Back</label><input id="t-back" class="input text-sm" value="${esc(t.gettingBack ?? '')}" placeholder="Rideshare, Car rental" /></div>
+        <div><label class="block text-xs text-gray-500 mb-1">Notes</label><textarea id="t-back-notes" class="input text-sm resize-none" rows="2">${esc(t.gettingBackNotes ?? '')}</textarea></div>
       </div>
       <div class="flex gap-2 mt-3">
         <button class="info-cancel btn-secondary flex-1 text-sm py-2">Cancel</button>
@@ -830,7 +852,6 @@ function renderInfoTransport() {
       </div>
     </div>`;
   }
-
   const hasTransport = t.gettingThere || t.gettingBack;
   return `<div class="card p-4">
     <div class="flex items-center justify-between mb-3">
@@ -846,6 +867,24 @@ function renderInfoTransport() {
   </div>`;
 }
 
+function renderInfoMembers() {
+  const members = getMembers();
+  return `<div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Trip Members</h3>
+      ${!readonly ? `<button id="btn-add-member" class="btn-primary text-sm py-1.5 px-3">+ Add</button>` : ''}
+    </div>
+    ${members.length > 0 ? `
+    <ul class="divide-y divide-gray-100">
+      ${members.map(m => `
+        <li class="flex items-center justify-between py-2 group">
+          <span class="text-sm text-gray-800">${esc(m.name)}</span>
+          ${!readonly ? `<button class="del-member opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-xl leading-none p-1" data-member-id="${esc(m.id)}">×</button>` : ''}
+        </li>`).join('')}
+    </ul>` : `<p class="text-sm text-gray-400 italic">No members yet. Add people to split expenses with.</p>`}
+  </div>`;
+}
+
 function svgIcon(d) {
   return `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${d}"/></svg>`;
 }
@@ -854,47 +893,27 @@ function renderInfoActions() {
   if (readonly) {
     return `<div class="card p-4 space-y-2">
       <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Trip Actions</h3>
-      <button id="info-export" class="btn-secondary w-full justify-start gap-3">
-        ${svgIcon('M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4')} Export as JSON
-      </button>
-      <button id="info-unarchive" class="btn-secondary w-full justify-start gap-3">
-        ${svgIcon('M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6')} Restore to Active
-      </button>
+      <button id="info-export" class="btn-secondary w-full justify-start gap-3">${svgIcon('M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4')} Export as JSON</button>
+      <button id="info-unarchive" class="btn-secondary w-full justify-start gap-3">${svgIcon('M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6')} Restore to Active</button>
     </div>`;
   }
   return `<div class="card p-4 space-y-2">
     <h3 class="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">Trip Actions</h3>
-    <button id="info-export" class="btn-secondary w-full justify-start gap-3">
-      ${svgIcon('M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4')} Export as JSON
-    </button>
-    <button id="info-duplicate" class="btn-secondary w-full justify-start gap-3">
-      ${svgIcon('M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z')} Duplicate Trip
-    </button>
-    <button id="info-archive" class="btn-secondary w-full justify-start gap-3">
-      ${svgIcon('M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4')} Archive Trip
-    </button>
-    <button id="info-delete" class="btn-danger w-full justify-start gap-3">
-      ${svgIcon('M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16')} Delete Trip
-    </button>
+    <button id="info-export" class="btn-secondary w-full justify-start gap-3">${svgIcon('M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4')} Export as JSON</button>
+    <button id="info-duplicate" class="btn-secondary w-full justify-start gap-3">${svgIcon('M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z')} Duplicate Trip</button>
+    <button id="info-archive" class="btn-secondary w-full justify-start gap-3">${svgIcon('M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4')} Archive Trip</button>
+    <button id="info-delete" class="btn-danger w-full justify-start gap-3">${svgIcon('M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16')} Delete Trip</button>
   </div>`;
 }
 
 function attachInfoListeners() {
-  document.querySelectorAll('.info-edit').forEach(btn => {
-    btn.addEventListener('click', () => { editingSection = btn.dataset.section; renderInfo(); });
-  });
-  document.querySelectorAll('.info-cancel').forEach(btn => {
-    btn.addEventListener('click', () => { editingSection = null; renderInfo(); });
-  });
-  document.querySelectorAll('.info-save').forEach(btn => {
-    btn.addEventListener('click', () => saveInfoSection(btn.dataset.section));
-  });
+  document.querySelectorAll('.info-edit').forEach(btn => btn.addEventListener('click', () => { editingSection = btn.dataset.section; renderInfo(); }));
+  document.querySelectorAll('.info-cancel').forEach(btn => btn.addEventListener('click', () => { editingSection = null; renderInfo(); }));
+  document.querySelectorAll('.info-save').forEach(btn => btn.addEventListener('click', () => saveInfoSection(btn.dataset.section)));
 
-  // Live nights recalc while editing dates
   ['info-start', 'info-end'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', () => {
-      const s = document.getElementById('info-start')?.value;
-      const e = document.getElementById('info-end')?.value;
+      const s = document.getElementById('info-start')?.value, e = document.getElementById('info-end')?.value;
       const el = document.getElementById('info-nights-calc');
       if (!el || !s || !e) return;
       const n = Math.round((new Date(e + 'T12:00:00') - new Date(s + 'T12:00:00')) / 86400000);
@@ -902,124 +921,75 @@ function attachInfoListeners() {
     });
   });
 
+  document.getElementById('btn-add-member')?.addEventListener('click', openMemberModal);
+  document.querySelectorAll('.del-member').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = getMembers().find(m => m.id === btn.dataset.memberId)?.name ?? '';
+      confirmAction('👤', 'Remove member?', `Remove "${name}" from this trip? This won't delete their expenses.`,
+        'Remove', 'btn-danger',
+        () => { trip.members = (trip.members ?? []).filter(m => m.id !== btn.dataset.memberId); saveTrip(trip); renderInfo(); renderExpenses(); });
+    });
+  });
+
   document.getElementById('info-export')?.addEventListener('click', () => exportTrip(trip));
   document.getElementById('info-duplicate')?.addEventListener('click', () => {
-    confirmAction('📋', 'Duplicate this trip?',
-      'Creates a copy of the trip with all items unchecked.',
-      'Duplicate', 'btn-primary',
-      () => {
-        const copy = duplicateTrip(tripId);
-        window.showToast?.(`"${copy.name}" created`);
-        setTimeout(() => { location.href = `${BASE}trip/?id=${copy.id}`; }, 700);
-      });
+    confirmAction('📋', 'Duplicate this trip?', 'Creates a copy with all items unchecked.', 'Duplicate', 'btn-primary',
+      () => { const copy = duplicateTrip(tripId); window.showToast?.(`"${copy.name}" created`); setTimeout(() => { location.href = `${BASE}trip/?id=${copy.id}`; }, 700); });
   });
   document.getElementById('info-archive')?.addEventListener('click', () => {
-    confirmAction('📦', 'Archive trip?',
-      'Frozen read-only snapshot in Archive. You can restore it later.',
-      'Archive', 'btn-secondary',
+    confirmAction('📦', 'Archive trip?', 'Frozen read-only snapshot. You can restore it later.', 'Archive', 'btn-secondary',
       () => { archiveTrip(tripId); window.showToast?.('Trip archived'); setTimeout(() => location.replace(`${BASE}archive/`), 600); });
   });
   document.getElementById('info-delete')?.addEventListener('click', () => {
-    confirmAction('🗑️', `Delete "${trip.name}"?`,
-      'This cannot be undone. All data will be permanently removed.',
-      'Delete', 'btn-danger',
+    confirmAction('🗑️', `Delete "${trip.name}"?`, 'This cannot be undone.', 'Delete', 'btn-danger',
       () => { deleteTrip(tripId); window.showToast?.('Trip deleted'); setTimeout(() => location.replace(BASE), 600); });
   });
   document.getElementById('info-unarchive')?.addEventListener('click', () => {
-    unarchiveTrip(tripId);
-    window.showToast?.('Trip restored to active');
-    setTimeout(() => location.replace(BASE), 600);
+    unarchiveTrip(tripId); window.showToast?.('Trip restored to active'); setTimeout(() => location.replace(BASE), 600);
   });
 }
 
 function saveInfoSection(section) {
   let suggestSection = null;
-
   if (section === 'basics') {
     const start = document.getElementById('info-start').value;
     const end = document.getElementById('info-end').value;
     const nights = Math.round((new Date(end + 'T12:00:00') - new Date(start + 'T12:00:00')) / 86400000);
-    const nameVal = document.getElementById('info-name').value.trim();
-    const destVal = document.getElementById('info-destination').value.trim();
-
     const datesChanged = start !== trip.startDate || end !== trip.endDate;
     Object.assign(trip, {
-      name:        nameVal || trip.name,
-      destination: destVal || trip.destination,
+      name:        document.getElementById('info-name').value.trim() || trip.name,
+      destination: document.getElementById('info-destination').value.trim() || trip.destination,
       departFrom:  document.getElementById('info-origin').value.trim() || null,
-      startDate:   start,
-      endDate:     end,
-      nights:      nights >= 0 ? nights : trip.nights,
-      notes:       document.getElementById('info-notes').value.trim() || null,
+      startDate: start, endDate: end,
+      nights: nights >= 0 ? nights : trip.nights,
+      notes: document.getElementById('info-notes').value.trim() || null,
     });
-
-    // Rebuild days array when dates change, remapping itinerary events by old date
     if (datesChanged && nights >= 0) {
-      const oldDateToDayId = {};
-      (trip.days ?? []).forEach(d => { oldDateToDayId[d.date] = d.id; });
+      const oldDays = trip.days ?? [];
       const newDays = buildDays(tripId, start, nights);
-      const newDateToDayId = {};
-      newDays.forEach(d => { newDateToDayId[d.date] = d.id; });
+      const newDateMap = {};
+      newDays.forEach(d => { newDateMap[d.date] = d.id; });
       (trip.itineraryEvents ?? []).forEach(ev => {
-        const oldDay = (trip.days ?? []).find(d => d.id === ev.dayId);
-        if (oldDay) {
-          ev.dayId = newDateToDayId[oldDay.date] ?? newDays[newDays.length - 1]?.id ?? ev.dayId;
-        }
+        const old = oldDays.find(d => d.id === ev.dayId);
+        if (old) ev.dayId = newDateMap[old.date] ?? newDays[newDays.length - 1]?.id ?? ev.dayId;
       });
       trip.days = newDays;
     }
   } else if (section === 'flight') {
-    const prevFO = JSON.stringify(trip.flightOut ?? {});
-    const prevFR = JSON.stringify(trip.flightReturn ?? {});
-    trip.flightOut = {
-      airline:      document.getElementById('fo-airline').value.trim() || null,
-      flightNumber: document.getElementById('fo-number').value.trim() || null,
-      departTime:   document.getElementById('fo-depart').value || null,
-      arriveTime:   document.getElementById('fo-arrive').value || null,
-      confirmation: document.getElementById('fo-confirm').value.trim() || null,
-    };
-    trip.flightReturn = {
-      airline:      document.getElementById('fr-airline').value.trim() || null,
-      flightNumber: document.getElementById('fr-number').value.trim() || null,
-      departTime:   document.getElementById('fr-depart').value || null,
-      arriveTime:   document.getElementById('fr-arrive').value || null,
-      confirmation: document.getElementById('fr-confirm').value.trim() || null,
-    };
-    const anyFlight = (fo) => fo.airline || fo.flightNumber;
-    if (anyFlight(trip.flightOut) || anyFlight(trip.flightReturn)) {
-      if (JSON.stringify(trip.flightOut) !== prevFO || JSON.stringify(trip.flightReturn) !== prevFR) {
-        suggestSection = 'flight';
-      }
-    }
+    const prevFO = JSON.stringify(trip.flightOut ?? {}), prevFR = JSON.stringify(trip.flightReturn ?? {});
+    trip.flightOut = { airline: document.getElementById('fo-airline').value.trim() || null, flightNumber: document.getElementById('fo-number').value.trim() || null, departTime: document.getElementById('fo-depart').value || null, arriveTime: document.getElementById('fo-arrive').value || null, confirmation: document.getElementById('fo-confirm').value.trim() || null };
+    trip.flightReturn = { airline: document.getElementById('fr-airline').value.trim() || null, flightNumber: document.getElementById('fr-number').value.trim() || null, departTime: document.getElementById('fr-depart').value || null, arriveTime: document.getElementById('fr-arrive').value || null, confirmation: document.getElementById('fr-confirm').value.trim() || null };
+    if ((trip.flightOut.airline || trip.flightOut.flightNumber || trip.flightReturn.airline || trip.flightReturn.flightNumber) &&
+        (JSON.stringify(trip.flightOut) !== prevFO || JSON.stringify(trip.flightReturn) !== prevFR)) suggestSection = 'flight';
   } else if (section === 'hotel') {
     const prev = JSON.stringify(trip.hotel ?? {});
-    trip.hotel = {
-      name:         document.getElementById('h-name').value.trim() || null,
-      address:      document.getElementById('h-address').value.trim() || null,
-      checkInDate:  document.getElementById('h-checkin-date').value || null,
-      checkInTime:  document.getElementById('h-checkin-time').value || null,
-      checkOutDate: document.getElementById('h-checkout-date').value || null,
-      checkOutTime: document.getElementById('h-checkout-time').value || null,
-      confirmation: document.getElementById('h-confirm').value.trim() || null,
-      notes:        document.getElementById('h-notes').value.trim() || null,
-    };
+    trip.hotel = { name: document.getElementById('h-name').value.trim() || null, address: document.getElementById('h-address').value.trim() || null, checkInDate: document.getElementById('h-checkin-date').value || null, checkInTime: document.getElementById('h-checkin-time').value || null, checkOutDate: document.getElementById('h-checkout-date').value || null, checkOutTime: document.getElementById('h-checkout-time').value || null, confirmation: document.getElementById('h-confirm').value.trim() || null, notes: document.getElementById('h-notes').value.trim() || null };
     if (trip.hotel.name && JSON.stringify(trip.hotel) !== prev) suggestSection = 'hotel';
   } else if (section === 'transport') {
-    trip.transport = {
-      gettingThere:      document.getElementById('t-there').value.trim() || null,
-      gettingThereNotes: document.getElementById('t-there-notes').value.trim() || null,
-      gettingBack:       document.getElementById('t-back').value.trim() || null,
-      gettingBackNotes:  document.getElementById('t-back-notes').value.trim() || null,
-    };
+    trip.transport = { gettingThere: document.getElementById('t-there').value.trim() || null, gettingThereNotes: document.getElementById('t-there-notes').value.trim() || null, gettingBack: document.getElementById('t-back').value.trim() || null, gettingBackNotes: document.getElementById('t-back-notes').value.trim() || null };
   }
-
-  saveTrip(trip);
-  editingSection = null;
-  renderHeader();
-  renderItinerary();
-  renderInfo();
+  saveTrip(trip); editingSection = null; renderHeader(); renderItinerary(); renderInfo();
   window.showToast?.('Saved');
-
   if (suggestSection) setTimeout(() => offerItineraryEvents(suggestSection), 400);
 }
 
@@ -1027,70 +997,43 @@ function saveInfoSection(section) {
 
 function buildItinerarySuggestions(section) {
   const suggestions = [];
-  const firstDay = trip.days?.[0];
-  const lastDay  = trip.days?.[trip.days.length - 1];
-
+  const firstDay = trip.days?.[0], lastDay = trip.days?.[trip.days.length - 1];
   if (section === 'flight') {
     const fo = trip.flightOut ?? {};
     if (fo.airline || fo.flightNumber) {
       const label = fo.flightNumber ?? fo.airline ?? 'Outbound Flight';
       const route = trip.departFrom && trip.destination ? ` · ${trip.departFrom} → ${trip.destination}` : '';
-      suggestions.push({
-        title: `${label}${route}`,
-        dayId: firstDay?.id ?? null, dayLabel: firstDay?.label ?? 'Day 1',
-        time: fo.departTime ?? null,
-        notes: fo.confirmation ? `Conf: ${fo.confirmation}` : '',
-      });
+      suggestions.push({ title: `${label}${route}`, dayId: firstDay?.id ?? null, dayLabel: firstDay?.label ?? 'Day 1', time: fo.departTime ?? null, notes: fo.confirmation ? `Conf: ${fo.confirmation}` : '' });
     }
     const fr = trip.flightReturn ?? {};
     if (fr.airline || fr.flightNumber) {
       const label = fr.flightNumber ?? fr.airline ?? 'Return Flight';
       const route = trip.destination && trip.departFrom ? ` · ${trip.destination} → ${trip.departFrom}` : '';
-      suggestions.push({
-        title: `${label}${route}`,
-        dayId: lastDay?.id ?? null, dayLabel: lastDay?.label ?? 'Last Day',
-        time: fr.departTime ?? null,
-        notes: fr.confirmation ? `Conf: ${fr.confirmation}` : '',
-      });
+      suggestions.push({ title: `${label}${route}`, dayId: lastDay?.id ?? null, dayLabel: lastDay?.label ?? 'Last Day', time: fr.departTime ?? null, notes: fr.confirmation ? `Conf: ${fr.confirmation}` : '' });
     }
   }
-
   if (section === 'hotel') {
     const h = trip.hotel ?? {};
     if (h.name) {
       const ciDay = h.checkInDate ? (trip.days?.find(d => d.date === h.checkInDate) ?? firstDay) : firstDay;
       const coDay = h.checkOutDate ? (trip.days?.find(d => d.date === h.checkOutDate) ?? lastDay) : lastDay;
-      suggestions.push({
-        title: `Hotel Check-in: ${h.name}`,
-        dayId: ciDay?.id ?? null, dayLabel: ciDay?.label ?? '',
-        time: h.checkInTime ?? null, notes: h.confirmation ? `Conf: ${h.confirmation}` : '',
-      });
-      suggestions.push({
-        title: `Hotel Check-out: ${h.name}`,
-        dayId: coDay?.id ?? null, dayLabel: coDay?.label ?? '',
-        time: h.checkOutTime ?? null, notes: '',
-      });
+      suggestions.push({ title: `Hotel Check-in: ${h.name}`, dayId: ciDay?.id ?? null, dayLabel: ciDay?.label ?? '', time: h.checkInTime ?? null, notes: h.confirmation ? `Conf: ${h.confirmation}` : '' });
+      suggestions.push({ title: `Hotel Check-out: ${h.name}`, dayId: coDay?.id ?? null, dayLabel: coDay?.label ?? '', time: h.checkOutTime ?? null, notes: '' });
     }
   }
-
   return suggestions;
 }
 
 function offerItineraryEvents(section) {
   const suggestions = buildItinerarySuggestions(section);
-  if (suggestions.length === 0) return;
-
+  if (!suggestions.length) return;
   document.getElementById('suggest-events-list').innerHTML = suggestions.map((s, i) => `
     <label class="flex items-start gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
       <input type="checkbox" class="suggest-ev-check mt-0.5 text-indigo-600 rounded" data-idx="${i}" checked />
-      <div>
-        <p class="text-sm font-medium text-gray-800">${esc(s.title)}</p>
-        <p class="text-xs text-gray-500">${esc(s.dayLabel)}${s.time ? ' · ' + s.time : ''}</p>
-      </div>
+      <div><p class="text-sm font-medium text-gray-800">${esc(s.title)}</p>
+        <p class="text-xs text-gray-500">${esc(s.dayLabel)}${s.time ? ' · ' + s.time : ''}</p></div>
     </label>`).join('');
-
   openModal('modal-suggest-events');
-
   document.getElementById('suggest-events-skip').onclick = () => closeModal('modal-suggest-events');
   document.getElementById('suggest-events-add').onclick = () => {
     const checks = document.querySelectorAll('.suggest-ev-check:checked');
@@ -1099,11 +1042,473 @@ function offerItineraryEvents(section) {
       const s = suggestions[parseInt(cb.dataset.idx)];
       trip.itineraryEvents.push({ id: genId(), tripId, dayId: s.dayId, time: s.time, title: s.title, notes: s.notes ?? '' });
     });
-    saveTrip(trip);
-    closeModal('modal-suggest-events');
-    renderItinerary();
+    saveTrip(trip); closeModal('modal-suggest-events'); renderItinerary();
     if (checks.length > 0) window.showToast?.(`${checks.length} event${checks.length > 1 ? 's' : ''} added to itinerary`);
   };
+}
+
+// ── Trip Members ──────────────────────────────────────────────────────────────
+
+function getMembers() { return trip.members ?? []; }
+function getMemberName(id) { return getMembers().find(m => m.id === id)?.name ?? `Unknown (${id.slice(-4)})`; }
+
+function openMemberModal() {
+  const members = getMembers();
+  const global = (profile.globalPeople ?? []).filter(p => !members.some(m => m.name.toLowerCase() === p.name.toLowerCase()));
+  const importList = document.getElementById('member-import-list');
+  const importEmpty = document.getElementById('member-import-empty');
+  document.getElementById('member-new-name').value = '';
+  document.getElementById('member-save-global').checked = false;
+
+  if (global.length > 0) {
+    importList.innerHTML = global.map(p => `
+      <button class="import-global-person text-sm px-3 py-1.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1.5"
+              data-name="${esc(p.name)}">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        ${esc(p.name)}
+      </button>`).join('');
+    importEmpty.classList.add('hidden');
+    importList.querySelectorAll('.import-global-person').forEach(btn => {
+      btn.addEventListener('click', () => { addMemberToTrip(btn.dataset.name, false); closeModal('modal-member'); });
+    });
+  } else {
+    importList.innerHTML = '';
+    importEmpty.classList.remove('hidden');
+  }
+
+  openModal('modal-member');
+  setTimeout(() => document.getElementById('member-new-name').focus(), 50);
+}
+
+function addMemberToTrip(name, saveToGlobal) {
+  if (!trip.members) trip.members = [];
+  trip.members.push({ id: genId(), name });
+  saveTrip(trip);
+  if (saveToGlobal) {
+    if (!profile.globalPeople) profile.globalPeople = [];
+    if (!profile.globalPeople.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      profile.globalPeople.push({ id: genId(), name });
+      saveProfile(profile);
+    }
+  }
+  renderInfo();
+  renderExpenses();
+  window.showToast?.(`${name} added to trip`);
+}
+
+document.getElementById('form-member-new').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = document.getElementById('member-new-name').value.trim();
+  if (!name) return;
+  const saveGlobal = document.getElementById('member-save-global').checked;
+  addMemberToTrip(name, saveGlobal);
+  closeModal('modal-member');
+});
+
+// ── Expenses Tab ──────────────────────────────────────────────────────────────
+
+const EXPENSE_CATEGORIES = [
+  { id: 'food',          label: 'Food & Drink',    color: 'bg-orange-100 text-orange-800' },
+  { id: 'transport',     label: 'Transport',        color: 'bg-blue-100 text-blue-800' },
+  { id: 'accommodation', label: 'Accommodation',    color: 'bg-yellow-100 text-yellow-800' },
+  { id: 'entertainment', label: 'Entertainment',    color: 'bg-purple-100 text-purple-800' },
+  { id: 'shopping',      label: 'Shopping',         color: 'bg-pink-100 text-pink-800' },
+  { id: 'other',         label: 'Other',            color: 'bg-gray-100 text-gray-600' },
+];
+
+function getExpenses() { return trip.expenses ?? []; }
+function getExpCat(id) { return EXPENSE_CATEGORIES.find(c => c.id === id) ?? EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1]; }
+
+function renderExpenses() {
+  const panel = document.getElementById('tab-expenses');
+  const members = getMembers();
+  const expenses = getExpenses();
+
+  if (members.length === 0) {
+    panel.innerHTML = `
+      <div class="px-4 py-14 text-center">
+        <p class="text-base font-semibold text-gray-700 mb-2">Add trip members first</p>
+        <p class="text-sm text-gray-500 mb-4">Go to Info to add people to split expenses with.</p>
+        <button id="exp-go-info" class="btn-primary text-sm">Go to Info Tab</button>
+      </div>`;
+    panel.querySelector('#exp-go-info')?.addEventListener('click', () => document.querySelector('.tab-btn[data-tab="info"]')?.click());
+    return;
+  }
+
+  const totalAmount = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  const visible = expenses
+    .filter(e => expCategoryFilter === null || (e.category ?? 'other') === expCategoryFilter)
+    .filter(e => expPersonFilter === null || e.paidBy === expPersonFilter || (e.splitBetween ?? []).includes(expPersonFilter))
+    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+
+  const catTotals = {};
+  expenses.forEach(e => { const c = e.category ?? 'other'; catTotals[c] = (catTotals[c] ?? 0) + (e.amount || 0); });
+
+  panel.innerHTML = `
+    <div class="sticky top-[97px] bg-white border-b border-gray-100 z-20 px-4 py-3">
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <span class="text-xl font-bold text-gray-900">${fmt(totalAmount)}</span>
+          <span class="text-xs text-gray-500 ml-1.5">${expenses.length} expense${expenses.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="flex gap-2">
+          ${expenses.length > 0 ? `<button id="btn-settle-up" class="btn-secondary text-xs py-1.5 px-3">Settle Up</button>` : ''}
+          ${!readonly ? `<button id="btn-add-expense" class="btn-primary text-xs py-1.5 px-3">+ Add</button>` : ''}
+        </div>
+      </div>
+      ${expenses.length > 0 ? buildExpFilterBar(expenses, members) : ''}
+    </div>
+
+    <div class="divide-y divide-gray-50">
+      ${visible.length > 0 ? visible.map(e => renderExpenseRow(e)).join('') : `
+        <div class="px-4 py-12 text-center text-sm text-gray-400 italic">
+          ${expenses.length > 0 ? 'No expenses match the active filter.' : 'No expenses yet — tap + Add to get started.'}
+        </div>`}
+    </div>
+
+    ${Object.keys(catTotals).length > 1 ? `
+    <div class="px-4 py-4 border-t border-gray-100">
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">By Category</p>
+      <div class="space-y-1.5">
+        ${Object.entries(catTotals).map(([cat, total]) => {
+          const c = getExpCat(cat);
+          return `<div class="flex justify-between items-center text-sm">
+            <span class="badge ${c.color}">${esc(c.label)}</span>
+            <span class="font-medium text-gray-800">${fmt(total)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}`;
+
+  panel.querySelector('#btn-add-expense')?.addEventListener('click', () => openExpenseModal());
+  panel.querySelector('#btn-settle-up')?.addEventListener('click', openSettleUp);
+  panel.querySelectorAll('[data-edit-expense]').forEach(btn => btn.addEventListener('click', () => openExpenseModal(btn.dataset.editExpense)));
+  panel.querySelectorAll('[data-del-expense]').forEach(btn => btn.addEventListener('click', () => deleteExpense(btn.dataset.delExpense)));
+  panel.querySelectorAll('.exp-filter-cat').forEach(btn => btn.addEventListener('click', () => { expCategoryFilter = btn.dataset.cat || null; renderExpenses(); }));
+  panel.querySelectorAll('.exp-filter-person').forEach(btn => btn.addEventListener('click', () => { expPersonFilter = btn.dataset.person || null; renderExpenses(); }));
+}
+
+function buildExpFilterBar(expenses, members) {
+  const usedCats = [...new Set(expenses.map(e => e.category ?? 'other'))];
+  return `<div class="space-y-1.5">
+    ${usedCats.length > 1 ? `<div class="flex gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none">
+      <button class="exp-filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${expCategoryFilter === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}" data-cat="">All</button>
+      ${usedCats.map(cat => { const c = getExpCat(cat); const cls = expCategoryFilter === cat ? c.color + ' ring-1 ring-inset ring-current' : 'bg-gray-100 text-gray-600'; return `<button class="exp-filter-cat text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${cls}" data-cat="${esc(cat)}">${esc(c.label)}</button>`; }).join('')}
+    </div>` : ''}
+    ${members.length > 1 ? `<div class="flex gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none">
+      <button class="exp-filter-person text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${expPersonFilter === null ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}" data-person="">All</button>
+      ${members.map(m => { const cls = expPersonFilter === m.id ? 'bg-indigo-100 text-indigo-800 ring-1 ring-inset ring-indigo-300' : 'bg-gray-100 text-gray-600'; return `<button class="exp-filter-person text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${cls}" data-person="${esc(m.id)}">${esc(m.name)}</button>`; }).join('')}
+    </div>` : ''}
+  </div>`;
+}
+
+function renderExpenseRow(expense) {
+  const payerName = getMemberName(expense.paidBy);
+  const splitNames = (expense.splitBetween ?? []).map(id => getMemberName(id));
+  const isCustom = expense.customAmounts && Object.keys(expense.customAmounts).length > 0;
+  const shareStr = isCustom ? 'custom' : splitNames.length > 0 ? `${fmt(expense.amount / splitNames.length)}/ea` : '';
+  const abbrev = splitNames.length <= 3 ? splitNames.join(', ') : `${splitNames.slice(0, 2).join(', ')} +${splitNames.length - 2}`;
+  const cat = getExpCat(expense.category ?? 'other');
+  const editDel = !readonly ? `
+    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-1">
+      <button data-edit-expense="${esc(expense.id)}" class="btn-ghost p-1.5" title="Edit">✏️</button>
+      <button data-del-expense="${esc(expense.id)}" class="btn-ghost p-1.5 text-red-400 hover:text-red-600 text-lg leading-none" title="Delete">×</button>
+    </div>` : '';
+
+  return `<div class="group flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center flex-wrap gap-1.5 mb-0.5">
+        <span class="text-sm font-semibold text-gray-900">${esc(expense.description)}</span>
+        <span class="badge ${cat.color}">${esc(cat.label)}</span>
+      </div>
+      ${expense.venueOrNote ? `<p class="text-xs text-gray-400 mb-0.5">${esc(expense.venueOrNote)}</p>` : ''}
+      <p class="text-xs text-gray-500">
+        Paid by <span class="font-medium text-gray-700">${esc(payerName)}</span>
+        ${splitNames.length > 0 ? `· <span title="${esc(splitNames.join(', '))}">${esc(abbrev)}</span>` : ''}
+        ${expense.date ? `· ${expense.date}` : ''}
+      </p>
+    </div>
+    <div class="text-right flex-shrink-0">
+      <p class="text-sm font-bold text-gray-900">${fmt(expense.amount)}</p>
+      ${shareStr ? `<p class="text-xs text-gray-400">${shareStr}</p>` : ''}
+    </div>
+    ${editDel}
+  </div>`;
+}
+
+function deleteExpense(expenseId) {
+  trip.expenses = (trip.expenses ?? []).filter(e => e.id !== expenseId);
+  trip.paidSettlements = [];
+  saveTrip(trip); renderExpenses(); window.showToast?.('Expense removed');
+}
+
+// ── Expense Modal ─────────────────────────────────────────────────────────────
+
+function openExpenseModal(editExpenseId = null) {
+  const members = getMembers();
+  if (members.length === 0) { window.showToast?.('Add trip members first (Info tab)'); return; }
+
+  document.getElementById('form-expense').reset();
+  document.getElementById('expense-edit-id').value = '';
+  document.getElementById('modal-expense-title').textContent = editExpenseId ? 'Edit Expense' : 'Add Expense';
+  expSplitMethod = 'equal';
+
+  document.getElementById('exp-date').value = trip.startDate ?? '';
+  document.getElementById('exp-paid-by').innerHTML =
+    members.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+
+  if (editExpenseId) {
+    const expense = getExpenses().find(e => e.id === editExpenseId);
+    if (expense) {
+      document.getElementById('expense-edit-id').value = expense.id;
+      document.getElementById('exp-description').value = expense.description ?? '';
+      document.getElementById('exp-amount').value = expense.amount ?? '';
+      document.getElementById('exp-category').value = expense.category ?? 'food';
+      document.getElementById('exp-date').value = expense.date ?? trip.startDate ?? '';
+      document.getElementById('exp-venue').value = expense.venueOrNote ?? '';
+      document.getElementById('exp-paid-by').value = expense.paidBy ?? '';
+      if (expense.customAmounts && Object.keys(expense.customAmounts).length > 0) expSplitMethod = 'custom';
+      buildExpSplitCheckboxes(members, expense.splitBetween ?? []);
+      if (expSplitMethod === 'custom') setTimeout(() => loadCustomAmounts(expense.customAmounts), 10);
+    }
+  } else {
+    buildExpSplitCheckboxes(members, members.map(m => m.id));
+  }
+
+  updateExpSplitMethodUI();
+  wireExpenseModalEvents();
+  openModal('modal-expense');
+  setTimeout(() => document.getElementById('exp-description').focus(), 50);
+}
+
+function buildExpSplitCheckboxes(members, selectedIds) {
+  document.getElementById('exp-split-list').innerHTML = members.map(m => `
+    <label class="flex items-center gap-2 cursor-pointer py-1 select-none">
+      <input type="checkbox" class="exp-split-check h-4 w-4 rounded text-indigo-600"
+             value="${esc(m.id)}" ${selectedIds.includes(m.id) ? 'checked' : ''} />
+      <span class="text-sm text-gray-700 flex-1">${esc(m.name)}</span>
+      <span class="exp-person-share text-xs text-gray-400 tabular-nums" data-person="${esc(m.id)}"></span>
+    </label>`).join('');
+}
+
+function loadCustomAmounts(customAmounts) {
+  const list = document.getElementById('exp-custom-list');
+  if (!list) return;
+  list.querySelectorAll('[data-custom-amount]').forEach(inp => {
+    const v = customAmounts?.[inp.dataset.customAmount];
+    if (v != null) inp.value = (+v).toFixed(2);
+  });
+  updateCustomRemaining();
+}
+
+function wireExpenseModalEvents() {
+  document.querySelectorAll('.exp-split-check').forEach(cb => {
+    cb.addEventListener('change', () => { updateExpPerPerson(); if (expSplitMethod === 'custom') rebuildCustomList(); });
+  });
+  document.getElementById('exp-amount').oninput = () => { updateExpPerPerson(); updateCustomRemaining(); };
+  document.getElementById('exp-select-all').onclick = () => {
+    const cbs = document.querySelectorAll('.exp-split-check');
+    const allChecked = [...cbs].every(cb => cb.checked);
+    cbs.forEach(cb => { cb.checked = !allChecked; });
+    updateExpPerPerson();
+    if (expSplitMethod === 'custom') rebuildCustomList();
+  };
+  document.getElementById('exp-split-equal').onclick = () => { expSplitMethod = 'equal'; updateExpSplitMethodUI(); };
+  document.getElementById('exp-split-custom').onclick = () => { expSplitMethod = 'custom'; updateExpSplitMethodUI(); };
+}
+
+function getSelectedSplitIds() {
+  return [...document.querySelectorAll('.exp-split-check:checked')].map(cb => cb.value);
+}
+
+function updateExpPerPerson() {
+  if (expSplitMethod !== 'equal') return;
+  const amount = parseFloat(document.getElementById('exp-amount')?.value) || 0;
+  const selected = getSelectedSplitIds();
+  const perPerson = selected.length > 0 ? amount / selected.length : 0;
+  document.querySelectorAll('.exp-person-share').forEach(span => {
+    const cb = document.querySelector(`.exp-split-check[value="${CSS.escape(span.dataset.person)}"]`);
+    span.textContent = cb?.checked && selected.length > 0 && amount > 0 ? fmt(perPerson) : '';
+  });
+  const el = document.getElementById('exp-per-person');
+  if (el) el.textContent = selected.length > 0 && amount > 0 ? `${fmt(perPerson)} each` : '';
+}
+
+function rebuildCustomList() {
+  const selected = getSelectedSplitIds();
+  const amount = parseFloat(document.getElementById('exp-amount')?.value) || 0;
+  const container = document.getElementById('exp-custom-list');
+  if (!container) return;
+  const existing = {};
+  container.querySelectorAll('[data-custom-amount]').forEach(inp => { existing[inp.dataset.customAmount] = inp.value; });
+  const defaultShare = selected.length > 0 ? (amount / selected.length).toFixed(2) : '0.00';
+  container.innerHTML = selected.map(id => `
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-sm text-gray-700 flex-1">${esc(getMemberName(id))}</span>
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-gray-400">$</span>
+        <input type="number" min="0" step="0.01" class="input w-24 text-sm py-1 text-right"
+               data-custom-amount="${esc(id)}" value="${existing[id] ?? defaultShare}" />
+      </div>
+    </div>`).join('');
+  container.querySelectorAll('[data-custom-amount]').forEach(inp => { inp.addEventListener('input', updateCustomRemaining); });
+  updateCustomRemaining();
+}
+
+function updateCustomRemaining() {
+  if (expSplitMethod !== 'custom') return;
+  const amount = parseFloat(document.getElementById('exp-amount')?.value) || 0;
+  const allocated = [...document.querySelectorAll('[data-custom-amount]')].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+  const remaining = amount - allocated;
+  const el = document.getElementById('exp-remaining');
+  const lbl = document.getElementById('exp-remaining-label');
+  if (!el) return;
+  el.textContent = fmt(Math.abs(remaining));
+  el.className = Math.abs(remaining) < 0.005 ? 'font-semibold text-green-600'
+    : remaining < 0 ? 'font-semibold text-red-600' : 'font-semibold text-amber-600';
+  if (lbl) lbl.textContent = remaining < -0.005 ? 'over by' : remaining > 0.005 ? 'remaining' : 'balanced ✓';
+}
+
+function updateExpSplitMethodUI() {
+  const isCustom = expSplitMethod === 'custom';
+  const eqBtn = document.getElementById('exp-split-equal');
+  const cuBtn = document.getElementById('exp-split-custom');
+  if (eqBtn) eqBtn.className = `${isCustom ? 'btn-secondary' : 'btn-primary'} flex-1 text-sm py-1.5`;
+  if (cuBtn) cuBtn.className = `${isCustom ? 'btn-primary' : 'btn-secondary'} flex-1 text-sm py-1.5`;
+  document.getElementById('exp-custom-amounts')?.classList.toggle('hidden', !isCustom);
+  const pp = document.getElementById('exp-per-person');
+  if (pp) pp.textContent = '';
+  if (isCustom) { rebuildCustomList(); document.querySelectorAll('.exp-person-share').forEach(s => { s.textContent = ''; }); }
+  else updateExpPerPerson();
+}
+
+document.getElementById('form-expense').addEventListener('submit', e => {
+  e.preventDefault();
+  const editId = document.getElementById('expense-edit-id').value;
+  const description = document.getElementById('exp-description').value.trim();
+  const amount = parseFloat(document.getElementById('exp-amount').value);
+  const category = document.getElementById('exp-category').value || 'other';
+  const date = document.getElementById('exp-date').value || null;
+  const venueOrNote = document.getElementById('exp-venue').value.trim() || null;
+  const paidBy = document.getElementById('exp-paid-by').value;
+  const splitBetween = getSelectedSplitIds();
+
+  if (splitBetween.length === 0) { window.showToast?.('Select at least one person to split with'); return; }
+  if (isNaN(amount) || amount <= 0) { window.showToast?.('Enter a valid amount'); return; }
+
+  let customAmounts = null;
+  if (expSplitMethod === 'custom') {
+    customAmounts = {};
+    document.querySelectorAll('[data-custom-amount]').forEach(inp => { customAmounts[inp.dataset.customAmount] = parseFloat(inp.value) || 0; });
+    const total = Object.values(customAmounts).reduce((s, v) => s + v, 0);
+    if (Math.abs(total - amount) > 0.01) { window.showToast?.('Custom amounts must equal total'); return; }
+  }
+
+  const expense = { id: editId || genId(), tripId, description, amount, category, date, venueOrNote, paidBy, splitBetween, customAmounts };
+  if (!trip.expenses) trip.expenses = [];
+  const idx = trip.expenses.findIndex(ex => ex.id === expense.id);
+  if (idx >= 0) trip.expenses[idx] = expense; else trip.expenses.push(expense);
+  trip.paidSettlements = [];
+  saveTrip(trip); closeModal('modal-expense'); renderExpenses();
+  window.showToast?.(editId ? 'Expense updated' : 'Expense added');
+});
+
+// ── Settlement ────────────────────────────────────────────────────────────────
+
+function calculateSettlements() {
+  const expenses = getExpenses();
+  const members = getMembers();
+  if (!expenses.length || !members.length) return [];
+
+  const balances = {};
+  members.forEach(m => { balances[m.id] = 0; });
+
+  expenses.forEach(expense => {
+    if (!(expense.paidBy in balances)) balances[expense.paidBy] = 0;
+    balances[expense.paidBy] += expense.amount;
+    (expense.splitBetween ?? []).forEach(personId => {
+      if (!(personId in balances)) balances[personId] = 0;
+      const share = expense.customAmounts?.[personId] != null
+        ? expense.customAmounts[personId]
+        : expense.amount / (expense.splitBetween?.length || 1);
+      balances[personId] -= share;
+    });
+  });
+
+  const creditors = Object.entries(balances).filter(([, v]) => v > 0.005).map(([id, amount]) => ({ id, amount })).sort((a, b) => b.amount - a.amount);
+  const debtors  = Object.entries(balances).filter(([, v]) => v < -0.005).map(([id, amount]) => ({ id, amount: -amount })).sort((a, b) => b.amount - a.amount);
+
+  const transactions = [];
+  let ci = 0, di = 0;
+  while (ci < creditors.length && di < debtors.length) {
+    const credit = creditors[ci], debt = debtors[di];
+    const amount = Math.min(credit.amount, debt.amount);
+    transactions.push({ from: debt.id, to: credit.id, amount: Math.round(amount * 100) / 100 });
+    credit.amount -= amount;
+    debt.amount -= amount;
+    if (credit.amount < 0.005) ci++;
+    if (debt.amount < 0.005) di++;
+  }
+  return transactions;
+}
+
+function openSettleUp() {
+  renderSettleContent(calculateSettlements());
+  openModal('modal-settle');
+}
+
+function renderSettleContent(transactions) {
+  const paid = trip.paidSettlements ?? [];
+  const paidKeys = new Set(paid.map(p => `${p.from}|${p.to}|${p.amount}`));
+  const remaining = transactions.filter(t => !paidKeys.has(`${t.from}|${t.to}|${t.amount}`));
+  const container = document.getElementById('settle-content');
+
+  if (transactions.length === 0) {
+    container.innerHTML = `<div class="text-center py-8"><p class="text-sm text-gray-500">No expenses to settle.</p></div>`;
+    return;
+  }
+
+  if (remaining.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-8">
+        <div class="text-5xl mb-3">🎉</div>
+        <h3 class="text-lg font-bold text-gray-800 mb-1">All Settled!</h3>
+        <p class="text-sm text-gray-500 mb-4">Everyone's square.</p>
+        <button id="settle-reset" class="text-xs text-gray-400 hover:text-gray-600 underline">Reset settlements</button>
+      </div>`;
+    container.querySelector('#settle-reset').onclick = () => { trip.paidSettlements = []; saveTrip(trip); renderSettleContent(calculateSettlements()); };
+    return;
+  }
+
+  container.innerHTML = `
+    <p class="text-sm text-gray-500 mb-3">Minimum <strong>${transactions.length}</strong> payment${transactions.length !== 1 ? 's' : ''} needed to clear all debts:</p>
+    <div class="space-y-2">
+      ${transactions.map(t => {
+        const isPaid = paidKeys.has(`${t.from}|${t.to}|${t.amount}`);
+        return `<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg ${isPaid ? 'bg-green-50' : 'bg-gray-50'}">
+          <div class="flex-1 text-sm">
+            <span class="font-semibold ${isPaid ? 'text-gray-400 line-through' : 'text-gray-900'}">${esc(getMemberName(t.from))}</span>
+            <span class="text-gray-400 mx-1">→</span>
+            <span class="font-semibold ${isPaid ? 'text-gray-400 line-through' : 'text-gray-900'}">${esc(getMemberName(t.to))}</span>
+            <span class="font-bold ml-1 ${isPaid ? 'text-gray-400 line-through' : 'text-indigo-600'}">${fmt(t.amount)}</span>
+          </div>
+          ${isPaid
+            ? `<span class="text-xs text-green-600 font-medium flex-shrink-0">✓ Paid</span>`
+            : (!readonly ? `<button class="settle-mark-paid btn-secondary text-xs py-1 px-2 flex-shrink-0"
+                data-from="${esc(t.from)}" data-to="${esc(t.to)}" data-amount="${t.amount}">Mark Paid</button>` : '')}
+        </div>`;
+      }).join('')}
+    </div>
+    ${paid.length > 0 ? `<button id="settle-reset" class="mt-4 text-xs text-gray-400 hover:text-gray-600 underline block">Reset all settlements</button>` : ''}`;
+
+  container.querySelectorAll('.settle-mark-paid').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!trip.paidSettlements) trip.paidSettlements = [];
+      trip.paidSettlements.push({ from: btn.dataset.from, to: btn.dataset.to, amount: parseFloat(btn.dataset.amount) });
+      saveTrip(trip); renderSettleContent(calculateSettlements());
+    });
+  });
+  container.querySelector('#settle-reset')?.addEventListener('click', () => { trip.paidSettlements = []; saveTrip(trip); renderSettleContent(calculateSettlements()); });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -1112,4 +1517,5 @@ renderHeader();
 renderPackingList();
 renderItinerary();
 renderInfo();
+renderExpenses();
 </script>

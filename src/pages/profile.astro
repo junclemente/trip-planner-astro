@@ -43,6 +43,21 @@ import Layout from '../layouts/Layout.astro';
       <div id="clothing-defaults-rows" class="space-y-3"></div>
     </div>
 
+    <!-- Global People -->
+    <div class="card p-4">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <h2 class="font-semibold text-gray-900">People</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Reusable across all trips for expense splitting</p>
+        </div>
+        <button id="btn-add-person" class="btn-primary text-sm py-1.5 px-3">+ Add</button>
+      </div>
+      <ul id="people-list" class="divide-y divide-gray-100"></ul>
+      <p id="no-people" class="text-sm text-gray-400 italic py-2 hidden">
+        No people added yet. Add travel companions to use across trips.
+      </p>
+    </div>
+
     <!-- Categories -->
     <div class="card p-4">
       <div class="flex items-center justify-between mb-3">
@@ -72,6 +87,27 @@ import Layout from '../layouts/Layout.astro';
     </div>
 
   </main>
+
+  <!-- Add/Edit Person Modal -->
+  <div id="modal-person" class="modal-overlay hidden">
+    <div class="modal-box max-w-sm">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-person-title" class="text-lg font-bold">Add Person</h2>
+        <button id="close-person" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+      </div>
+      <form id="form-person" class="p-4 space-y-4">
+        <input type="hidden" id="person-edit-id" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+          <input id="person-name" type="text" class="input" placeholder="e.g. Alex, Mom, Steve" required />
+        </div>
+        <div class="flex gap-3">
+          <button type="button" id="cancel-person" class="btn-secondary flex-1">Cancel</button>
+          <button type="submit" class="btn-primary flex-1">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Add/Edit Essential Modal -->
   <div id="modal-essential" class="modal-overlay hidden">
@@ -464,7 +500,7 @@ document.getElementById('form-tag').addEventListener('submit', e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    ['modal-essential', 'modal-tag', 'modal-confirm'].forEach(id => {
+    ['modal-person', 'modal-essential', 'modal-tag', 'modal-confirm'].forEach(id => {
       document.getElementById(id).classList.add('hidden');
     });
   }
@@ -517,10 +553,96 @@ function adjustClothingDefault(key, delta) {
   renderClothingDefaults();
 }
 
+// ── Global People ─────────────────────────────────────────────────────────────
+
+function renderPeople() {
+  const profile = getProfile();
+  const people = profile.globalPeople ?? [];
+  const list = document.getElementById('people-list');
+  const empty = document.getElementById('no-people');
+
+  if (!people.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = people.map(p => `
+    <li class="flex items-center gap-3 py-2.5 group">
+      <span class="flex-1 text-sm text-gray-800">${esc(p.name)}</span>
+      <button class="edit-person opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-500 transition-all p-1 text-xs"
+              data-id="${esc(p.id)}" title="Edit">✏️</button>
+      <button class="del-person opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-lg leading-none p-1"
+              data-id="${esc(p.id)}" data-name="${esc(p.name)}" title="Remove">×</button>
+    </li>`).join('');
+
+  list.querySelectorAll('.edit-person').forEach(btn => {
+    btn.addEventListener('click', () => openPersonModal(btn.dataset.id));
+  });
+  list.querySelectorAll('.del-person').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.name;
+      confirmAction('🗑️', 'Remove person?', `Remove "${name}" from your people list?`, 'Remove', () => {
+        const pr = getProfile();
+        pr.globalPeople = (pr.globalPeople ?? []).filter(p => p.id !== btn.dataset.id);
+        saveProfile(pr);
+        renderPeople();
+        window.showToast?.('Removed');
+      });
+    });
+  });
+}
+
+function openPersonModal(editId = null) {
+  document.getElementById('form-person').reset();
+  document.getElementById('person-edit-id').value = '';
+  document.getElementById('modal-person-title').textContent = editId ? 'Edit Person' : 'Add Person';
+  if (editId) {
+    const person = (getProfile().globalPeople ?? []).find(p => p.id === editId);
+    if (person) {
+      document.getElementById('person-edit-id').value = person.id;
+      document.getElementById('person-name').value = person.name;
+    }
+  }
+  document.getElementById('modal-person').classList.remove('hidden');
+  setTimeout(() => document.getElementById('person-name').focus(), 50);
+}
+
+document.getElementById('btn-add-person').addEventListener('click', () => openPersonModal());
+document.getElementById('close-person').addEventListener('click', () => {
+  document.getElementById('modal-person').classList.add('hidden');
+});
+document.getElementById('cancel-person').addEventListener('click', () => {
+  document.getElementById('modal-person').classList.add('hidden');
+});
+document.getElementById('modal-person').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+});
+
+document.getElementById('form-person').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = document.getElementById('person-name').value.trim();
+  const editId = document.getElementById('person-edit-id').value;
+  const profile = getProfile();
+  if (!profile.globalPeople) profile.globalPeople = [];
+
+  if (editId) {
+    const person = profile.globalPeople.find(p => p.id === editId);
+    if (person) person.name = name;
+  } else {
+    profile.globalPeople.push({ id: genId(), name });
+  }
+  saveProfile(profile);
+  document.getElementById('modal-person').classList.add('hidden');
+  renderPeople();
+  window.showToast?.(editId ? 'Updated' : `"${name}" added`);
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 renderBuiltins();
 renderEssentials();
 renderCustomTags();
 renderClothingDefaults();
+renderPeople();
 </script>
