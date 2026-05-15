@@ -1,0 +1,15 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "context": {
+    "includeFiles": [
+      "src/utils/store.js",
+      "src/data/templates.js",
+      "src/pages/trip.astro"
+    ],
+    "excludeFiles": [
+      "dist/**",
+      "node_modules/**",
+      ".git/**"
+    ]
+  }
+}
