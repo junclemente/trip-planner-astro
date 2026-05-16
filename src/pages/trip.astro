@@ -286,7 +286,7 @@ import Layout from '../layouts/Layout.astro';
             <label class="block text-xs text-gray-500 mb-1">Country *</label>
             <div class="relative overflow-visible">
               <input id="dest-country" type="text" class="input text-sm w-full" placeholder="Start typing country name..." required autocomplete="off" />
-              <ul id="dest-dropdown" class="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto top-full mt-1" style="z-index: 9999;">
+              <ul id="dest-dropdown" class="fixed z-[9999] w-72 bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto"></ul>
                 <!-- Country options populated by JavaScript -->
               </ul>
             </div>

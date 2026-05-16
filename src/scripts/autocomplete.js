@@ -64,7 +64,11 @@ function renderCountryDropdown(countries, dropdownId) {
     .join("")
 
   dropdown.classList.remove("hidden")
-
+  // Position dropdown below input
+  const rect = input.getBoundingClientRect()
+  dropdown.style.top = `${rect.bottom + window.scrollY}px`
+  dropdown.style.left = `${rect.left + window.scrollX}px`
+  dropdown.style.width = `${rect.width}px`
   // Add click listeners
   dropdown.querySelectorAll("[data-country-index]").forEach((el) => {
     el.addEventListener("mousedown", () => {
