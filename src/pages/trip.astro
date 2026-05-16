@@ -282,16 +282,23 @@ import Layout from '../layouts/Layout.astro';
       <div class="overflow-y-auto" style="max-height:calc(100vh - 160px)">
         <form id="form-destination" class="p-4 space-y-3">
           <input type="hidden" id="dest-edit-id" />
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Country *</label>
+            <div class="relative overflow-visible">
+              <input id="dest-country" type="text" class="input text-sm w-full" placeholder="Start typing country name..." required autocomplete="off" />
+              <ul id="dest-dropdown" class="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto top-full mt-1" style="z-index: 9999;">
+                <!-- Country options populated by JavaScript -->
+              </ul>
+            </div>
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-xs text-gray-500 mb-1">City *</label>
-              <input id="dest-city" type="text" class="input text-sm" placeholder="e.g. Seoul" required />
+              <label class="block text-xs text-gray-500 mb-1">City</label>
+              <input id="dest-city" type="text" class="input text-sm" placeholder="e.g. Seoul" />
             </div>
             <div>
-              <label class="block text-xs text-gray-500 mb-1">Country *</label>
-              <select id="dest-country-select" class="input text-sm" required>
-                <option value="">— Select —</option>
-              </select>
+              <label class="block text-xs text-gray-500 mb-1">Region</label>
+              <input id="dest-region" type="text" class="input text-sm" placeholder="e.g. Seoul, NSW, CA" />
             </div>
           </div>
           <div class="grid grid-cols-2 gap-2">
@@ -379,6 +386,7 @@ import {
 import {
   COUNTRIES, getCountry, getNeededPlugTypes, needs220VWarning, hasInternationalDests, PLUG_DESCRIPTIONS,
 } from '../data/countries.js';
+import { initCountryAutocomplete, getSelectedCountry, setSelectedCountry, clearAutocomplete } from '../scripts/autocomplete.js';
 
 const BASE = import.meta.env.BASE_URL;
 const params = new URLSearchParams(window.location.search);
@@ -757,19 +765,15 @@ document.getElementById('form-item').addEventListener('submit', e => {
 
 // ── Destination Modal ────────────────────────────────────────────────────────
 
-function populateCountrySelect(selectedCode = '') {
-  const sel = document.getElementById('dest-country-select');
-  if (!sel) return;
-  sel.innerHTML = `<option value="">— Select Country —</option>` +
-    COUNTRIES.slice().sort((a, b) => a.name.localeCompare(b.name))
-      .map(c => `<option value="${esc(c.code)}" ${c.code === selectedCode ? 'selected' : ''}>${esc(c.name)}</option>`)
-      .join('');
-}
+let selectedDestCountry = null;
 
-function updateDestCountryInfo(code) {
+function updateDestCountryInfo(country) {
   const info = document.getElementById('dest-country-info');
-  const country = code ? getCountry(code) : null;
-  if (!country || !code) { info?.classList.add('hidden'); return; }
+  if (!country) {
+    info?.classList.add('hidden');
+    selectedDestCountry = null;
+    return;
+  }
   info?.classList.remove('hidden');
   document.getElementById('dest-info-currency').textContent = `${country.currency} (${country.currencyCode})`;
   document.getElementById('dest-info-plugs').textContent = country.plugTypes.join(', ') || '—';
@@ -783,58 +787,88 @@ function openDestinationModal(editId = null) {
   document.getElementById('dest-edit-id').value = '';
   document.getElementById('modal-dest-title').textContent = editId ? 'Edit Destination' : 'Add Destination';
   document.getElementById('dest-country-info').classList.add('hidden');
-  populateCountrySelect();
+  selectedDestCountry = null;
+
   if (editId) {
     const d = (trip.destinations ?? []).find(d => d.id === editId);
     if (d) {
       document.getElementById('dest-edit-id').value = d.id;
       document.getElementById('dest-city').value = d.city ?? '';
-      populateCountrySelect(d.countryCode ?? '');
+      document.getElementById('dest-region').value = d.region ?? '';
+      document.getElementById('dest-country').value = d.country ?? '';
       document.getElementById('dest-arrival').value = d.arrivalDate ?? '';
       document.getElementById('dest-departure').value = d.departureDate ?? '';
       document.getElementById('dest-currency-notes').value = d.currencyNotes ?? '';
       document.getElementById('dest-atm-notes').value = d.atmNotes ?? '';
       document.getElementById('dest-card-notes').value = d.cardNotes ?? '';
-      updateDestCountryInfo(d.countryCode ?? '');
+
+      // Set selected country for autocomplete
+      if (d.country && d.countryCode) {
+        selectedDestCountry = { name: d.country, code: d.countryCode };
+        updateDestCountryInfo(getCountry(d.countryCode));
+      }
     }
   }
-  // Default arrival/departure to trip dates if no destinations yet
-  if (!editId && !(trip.destinations ?? []).length) {
-    document.getElementById('dest-arrival').value = trip.startDate ?? '';
-    document.getElementById('dest-departure').value = trip.endDate ?? '';
-  }
-  openModal('modal-destination');
-  setTimeout(() => document.getElementById('dest-city').focus(), 50);
-}
 
-document.getElementById('dest-country-select').addEventListener('change', e => {
-  updateDestCountryInfo(e.target.value);
-});
+  // Default arrival/departure to trip dates or last destination's departure
+  if (!editId) {
+    const dests = trip.destinations ?? [];
+    if (dests.length > 0) {
+      // Set arrival to last destination's departure date
+      const lastDest = dests[dests.length - 1];
+      document.getElementById('dest-arrival').value = lastDest.departureDate || trip.startDate || '';
+    } else {
+      document.getElementById('dest-arrival').value = trip.startDate || '';
+    }
+    document.getElementById('dest-departure').value = trip.endDate || '';
+  }
+
+  // Initialize country autocomplete
+  initCountryAutocomplete('dest-country', 'dest-dropdown', (country) => {
+    selectedDestCountry = country;
+    updateDestCountryInfo(country);
+  });
+
+  openModal('modal-destination');
+  setTimeout(() => document.getElementById('dest-country').focus(), 50);
+}
 
 document.getElementById('form-destination').addEventListener('submit', e => {
   e.preventDefault();
   const editId = document.getElementById('dest-edit-id').value;
+  const countryInput = document.getElementById('dest-country').value.trim();
+
+  if (!countryInput) {
+    window.showToast?.('Please select a country');
+    return;
+  }
+
   const city = document.getElementById('dest-city').value.trim();
-  const code = document.getElementById('dest-country-select').value;
-  const country = getCountry(code);
+  const region = document.getElementById('dest-region').value.trim();
+
+  // Use selected country from autocomplete or create basic entry
+  const country = selectedDestCountry || null;
   const dest = {
     id: editId || genId(),
-    city,
-    country: country?.name ?? '',
-    countryCode: code,
+    city: city || '',
+    region: region || '',
+    country: country ? country.name : countryInput,
+    countryCode: country ? country.code : '',
     arrivalDate: document.getElementById('dest-arrival').value || '',
     departureDate: document.getElementById('dest-departure').value || '',
-    currency: country?.currency ?? '',
-    currencyCode: country?.currencyCode ?? '',
-    plugTypes: country?.plugTypes ?? [],
-    voltage: country?.voltage ?? '',
+    currency: country ? country.currency : '',
+    currencyCode: country ? country.currencyCode : '',
+    plugTypes: country ? (country.plugTypes || []) : [],
+    voltage: country ? (country.voltage || '') : '',
     currencyNotes: document.getElementById('dest-currency-notes').value.trim(),
     atmNotes: document.getElementById('dest-atm-notes').value.trim(),
     cardNotes: document.getElementById('dest-card-notes').value.trim(),
   };
+
   if (!trip.destinations) trip.destinations = [];
   const idx = trip.destinations.findIndex(d => d.id === dest.id);
   if (idx >= 0) trip.destinations[idx] = dest; else trip.destinations.push(dest);
+
   // Sort by arrival date
   trip.destinations.sort((a, b) => (a.arrivalDate ?? '').localeCompare(b.arrivalDate ?? ''));
   recalcDatesFromDests();
@@ -842,10 +876,13 @@ document.getElementById('form-destination').addEventListener('submit', e => {
   closeModal('modal-destination');
   renderHeader(); renderItinerary(); renderInfo(); renderPackingList();
   window.showToast?.(editId ? 'Destination updated' : 'Destination added');
+
   // Offer international suggestions after a short delay
   const profile = getProfile();
   const homeCountryCode = profile.homeBase?.countryCode || 'US';
-  if (code && code !== homeCountryCode) setTimeout(() => openIntlSuggestModal(true), 500);
+  if (dest.countryCode && dest.countryCode !== homeCountryCode) {
+    setTimeout(() => openIntlSuggestModal(true), 500);
+  }
 });
 
 // ── International Packing Suggestions ────────────────────────────────────────

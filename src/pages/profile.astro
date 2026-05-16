@@ -14,6 +14,58 @@ import Layout from '../layouts/Layout.astro';
 
   <main class="max-w-lg mx-auto px-4 py-4 space-y-4">
 
+    <!-- Home Base -->
+    <div class="card p-4">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <h2 class="font-semibold text-gray-900">Home Base</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Auto-populates your origin on every new trip</p>
+        </div>
+        <button id="btn-edit-homebase" class="btn-secondary text-sm py-1.5 px-3">Edit</button>
+      </div>
+
+      <!-- Read-only view -->
+      <div id="homebase-readonly" class="space-y-2">
+        <div class="flex justify-between items-center py-1">
+          <span class="text-sm text-gray-500">Country</span>
+          <span id="homebase-display-country" class="text-sm font-medium text-gray-800"></span>
+        </div>
+        <div class="flex justify-between items-center py-1">
+          <span class="text-sm text-gray-500">City</span>
+          <span id="homebase-display-city" class="text-sm font-medium text-gray-800 italic text-gray-400"></span>
+        </div>
+        <div class="flex justify-between items-center py-1">
+          <span class="text-sm text-gray-500">Region</span>
+          <span id="homebase-display-region" class="text-sm font-medium text-gray-800 italic text-gray-400"></span>
+        </div>
+      </div>
+
+      <!-- Edit form -->
+      <form id="form-homebase" class="space-y-3 hidden">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Country *</label>
+          <div class="relative overflow-visible">
+            <input id="homebase-country" type="text" class="input w-full" placeholder="Start typing country name..." required autocomplete="off" />
+            <ul id="homebase-dropdown" class="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto top-full mt-1" style="z-index: 9999;">
+              <!-- Country options populated by JavaScript -->
+            </ul>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
+          <input id="homebase-city" type="text" class="input w-full" placeholder="e.g. San Diego" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Region</label>
+          <input id="homebase-region" type="text" class="input w-full" placeholder="e.g. CA, NSW, Ontario" />
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="cancel-homebase" class="btn-secondary flex-1">Cancel</button>
+          <button type="submit" class="btn-primary flex-1">Save Home Base</button>
+        </div>
+      </form>
+    </div>
+
     <!-- Personal Essentials -->
     <div class="card p-4">
       <div class="flex items-start justify-between mb-3">
@@ -181,6 +233,7 @@ import {
   RECOMMENDED_DEFAULTS, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, CUSTOM_COLORS,
   getAllCategories, getAllPriorities,
 } from '../scripts/templates.js';
+import { initCountryAutocomplete, getSelectedCountry, setSelectedCountry } from '../scripts/autocomplete.js';
 
 function esc(s) {
   const d = document.createElement('div');
@@ -638,8 +691,108 @@ document.getElementById('form-person').addEventListener('submit', e => {
   window.showToast?.(editId ? 'Updated' : `"${name}" added`);
 });
 
+// ── Home Base ─────────────────────────────────────────────────────────────────
+
+let selectedHomeBaseCountry = null;
+
+function renderHomeBase() {
+  const profile = getProfile();
+  const homeBase = profile.homeBase || {};
+
+  // Update display fields
+  document.getElementById('homebase-display-country').textContent = homeBase.country || 'Not set';
+  document.getElementById('homebase-display-city').textContent = homeBase.city || 'Not set';
+  document.getElementById('homebase-display-region').textContent = homeBase.region || 'Not set';
+
+  // Update display styling for empty fields
+  const cityEl = document.getElementById('homebase-display-city');
+  const regionEl = document.getElementById('homebase-display-region');
+
+  cityEl.className = homeBase.city ? 'text-sm font-medium text-gray-800' : 'text-sm font-medium text-gray-400 italic';
+  regionEl.className = homeBase.region ? 'text-sm font-medium text-gray-800' : 'text-sm font-medium text-gray-400 italic';
+}
+
+function openHomeBaseEdit() {
+  const profile = getProfile();
+  const homeBase = profile.homeBase || {};
+
+  // Show edit form, hide readonly view
+  document.getElementById('homebase-readonly').classList.add('hidden');
+  document.getElementById('form-homebase').classList.remove('hidden');
+  document.getElementById('btn-edit-homebase').textContent = 'Cancel';
+
+  // Pre-fill form fields
+  document.getElementById('homebase-country').value = homeBase.country || '';
+  document.getElementById('homebase-city').value = homeBase.city || '';
+  document.getElementById('homebase-region').value = homeBase.region || '';
+
+  // Set selected country for autocomplete
+  if (homeBase.country && homeBase.countryCode) {
+    selectedHomeBaseCountry = { name: homeBase.country, code: homeBase.countryCode };
+  } else {
+    selectedHomeBaseCountry = null;
+  }
+
+  // Initialize country autocomplete
+  initCountryAutocomplete('homebase-country', 'homebase-dropdown', (country) => {
+    selectedHomeBaseCountry = country;
+    document.getElementById('homebase-country').value = country.name;
+  });
+
+  setTimeout(() => document.getElementById('homebase-country').focus(), 50);
+}
+
+function closeHomeBaseEdit() {
+  // Hide edit form, show readonly view
+  document.getElementById('form-homebase').classList.add('hidden');
+  document.getElementById('homebase-readonly').classList.remove('hidden');
+  document.getElementById('btn-edit-homebase').textContent = 'Edit';
+  selectedHomeBaseCountry = null;
+}
+
+// Event listeners for home base
+document.getElementById('btn-edit-homebase').addEventListener('click', () => {
+  const isEditing = !document.getElementById('form-homebase').classList.contains('hidden');
+  if (isEditing) {
+    closeHomeBaseEdit();
+  } else {
+    openHomeBaseEdit();
+  }
+});
+
+document.getElementById('cancel-homebase').addEventListener('click', () => {
+  closeHomeBaseEdit();
+});
+
+document.getElementById('form-homebase').addEventListener('submit', e => {
+  e.preventDefault();
+
+  const country = document.getElementById('homebase-country').value.trim();
+  const city = document.getElementById('homebase-city').value.trim();
+  const region = document.getElementById('homebase-region').value.trim();
+
+  if (!country) {
+    window.showToast?.('Please select a country');
+    return;
+  }
+
+  const profile = getProfile();
+  profile.homeBase = {
+    country: selectedHomeBaseCountry ? selectedHomeBaseCountry.name : country,
+    countryCode: selectedHomeBaseCountry ? selectedHomeBaseCountry.code : '',
+    city: city || '',
+    region: region || ''
+  };
+
+  saveProfile(profile);
+  closeHomeBaseEdit();
+  renderHomeBase();
+  window.showToast?.('Home base updated');
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+renderHomeBase();
 renderBuiltins();
 renderEssentials();
 renderCustomTags();

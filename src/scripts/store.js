@@ -169,3 +169,51 @@ export function importTripFromJSON(jsonText) {
   return trip;
 }
 
+// ---- Destination CRUD ----
+
+export function addDestination(tripId, destination) {
+  const trip = getTrip(tripId);
+  if (!trip) return null;
+
+  if (!trip.destinations) trip.destinations = [];
+  const dest = {
+    id: genId(),
+    ...destination,
+  };
+  trip.destinations.push(dest);
+
+  // Sort by arrival date
+  trip.destinations.sort((a, b) => (a.arrivalDate ?? '').localeCompare(b.arrivalDate ?? ''));
+  saveTrip(trip);
+  return dest;
+}
+
+export function updateDestination(tripId, destinationId, updates) {
+  const trip = getTrip(tripId);
+  if (!trip || !trip.destinations) return null;
+
+  const idx = trip.destinations.findIndex(d => d.id === destinationId);
+  if (idx < 0) return null;
+
+  trip.destinations[idx] = { ...trip.destinations[idx], ...updates };
+
+  // Sort by arrival date after update
+  trip.destinations.sort((a, b) => (a.arrivalDate ?? '').localeCompare(b.arrivalDate ?? ''));
+  saveTrip(trip);
+  return trip.destinations[idx];
+}
+
+export function deleteDestination(tripId, destinationId) {
+  const trip = getTrip(tripId);
+  if (!trip || !trip.destinations) return false;
+
+  const initialLength = trip.destinations.length;
+  trip.destinations = trip.destinations.filter(d => d.id !== destinationId);
+
+  if (trip.destinations.length < initialLength) {
+    saveTrip(trip);
+    return true;
+  }
+  return false;
+}
+
