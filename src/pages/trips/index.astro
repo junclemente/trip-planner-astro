@@ -34,19 +34,19 @@ import Layout from '../../layouts/Layout.astro';
         <h2 class="text-lg font-bold">New Trip</h2>
         <button id="close-new-trip" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
       </div>
-      <form id="form-new-trip" class="p-4 space-y-4">
+      <form id="form-new-trip" class="p-4 space-y-4" style="overflow: visible;">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Trip Name *</label>
           <input id="nt-name" type="text" class="input" placeholder="e.g. Weekend in NYC" required />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Country *</label>
-          <div class="relative">
+          <div class="relative overflow-visible">
             <input id="nt-country" type="text" class="input" placeholder="Start typing country name..." required
                    autocomplete="off" />
-            <div id="country-dropdown" class="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto">
+            <ul id="country-dropdown" class="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto top-full mt-1" style="z-index: 9999;">
               <!-- Country options populated by JavaScript -->
-            </div>
+            </ul>
           </div>
         </div>
         <div>
@@ -84,7 +84,7 @@ import Layout from '../../layouts/Layout.astro';
         </div>
         <div id="custom-nights-row" class="hidden">
           <label class="block text-sm font-medium text-gray-700 mb-1">Number of Nights *</label>
-          <input id="nt-nights" type="number" min="1" max="365" class="input" placeholder="e.g. 5" required />
+          <input id="nt-nights" name="nt-nights" type="number" min="1" max="365" class="input" placeholder="e.g. 5" required />
         </div>
         <div id="nt-end-display" class="text-sm text-gray-500 hidden">
           Returns: <span id="nt-end-date-text" class="font-medium text-gray-800"></span>
@@ -193,6 +193,19 @@ function openNewTripModal() {
     radio.checked = true;
     updateEndDate();
   }
+
+  // Initialize nights input state (disabled since weekend template is selected)
+  const nightsInput = document.getElementById('nt-nights');
+  nightsInput.disabled = true;
+  nightsInput.required = false;
+
+  // Auto-populate "Departing From" with home base
+  const profile = getProfile();
+  const departInput = document.getElementById('nt-depart');
+  if (!departInput.value.trim() && profile.homeBase?.country) {
+    departInput.value = profile.homeBase.country;
+  }
+
   setTimeout(() => document.getElementById('nt-name').focus(), 50);
 }
 
@@ -201,6 +214,12 @@ function closeNewTripModal() {
   document.getElementById('form-new-trip').reset();
   document.getElementById('custom-nights-row').classList.add('hidden');
   document.getElementById('nt-end-display').classList.add('hidden');
+
+  // Reset nights input state
+  const nightsInput = document.getElementById('nt-nights');
+  nightsInput.disabled = true;
+  nightsInput.required = false;
+
   hideDropdown();
   selectedCountry = null;
 }
@@ -230,7 +249,22 @@ document.getElementById('modal-new-trip').addEventListener('click', e => {
 });
 document.querySelectorAll('input[name="template"]').forEach(r => {
   r.addEventListener('change', () => {
-    document.getElementById('custom-nights-row').classList.toggle('hidden', r.value !== 'custom');
+    const isCustom = r.value === 'custom';
+    const nightsInput = document.getElementById('nt-nights');
+    const nightsRow = document.getElementById('custom-nights-row');
+
+    // Toggle visibility
+    nightsRow.classList.toggle('hidden', !isCustom);
+
+    // Manage validation attributes
+    if (isCustom) {
+      nightsInput.disabled = false;
+      nightsInput.required = true;
+    } else {
+      nightsInput.disabled = true;
+      nightsInput.required = false;
+    }
+
     updateEndDate();
   });
 });
@@ -335,10 +369,10 @@ function renderCountryDropdown(countries) {
     const isActive = index === focusedIndex;
 
     return `
-      <div class="px-3 py-2 cursor-pointer hover:bg-gray-50 ${isActive ? 'bg-indigo-50' : ''}"
+      <li class="px-3 py-2 cursor-pointer hover:bg-gray-50 ${isActive ? 'bg-indigo-50' : ''}"
            data-country-index="${index}">
         <span class="text-lg">${flag}</span> ${esc(country.name)}
-      </div>
+      </li>
     `;
   }).join('');
 
@@ -438,13 +472,16 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
     const profile = getProfile();
     const tripId = `trip-${Date.now().toString(36)}`;
     const days = buildDays(tripId, startDate, nights);
-    const checklistItems = buildInitialChecklist(tripId, nights, profile.personalEssentials, profile.clothingDefaults ?? {});
+    const checklistItems = buildInitialChecklist(tripId, nights, profile?.personalEssentials || [], profile?.clothingDefaults || {});
 
     // Create destination from selected country (fault-tolerant)
     let destinations = [];
     let destinationDisplayName = '';
 
+    const countryInput = document.getElementById('nt-country').value.trim();
+
     if (selectedCountry) {
+      // User selected from dropdown
       try {
         const destinationObj = createDestinationFromCountry(selectedCountry, startDate, endDate);
         if (destinationObj) {
@@ -453,6 +490,29 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
         }
       } catch (error) {
         console.warn('Error creating destination from country, creating trip with empty destinations:', error);
+        // Continue with empty destinations array
+      }
+    } else if (countryInput) {
+      // User typed but didn't select from dropdown - create basic destination
+      try {
+        destinationDisplayName = countryInput;
+        const basicDestination = {
+          id: genId(),
+          country: countryInput,
+          countryCode: '',
+          city: '',
+          region: '',
+          arrivalDate: startDate,
+          departureDate: endDate,
+          currency: '',
+          currencyCode: '',
+          currencyNotes: '',
+          plugTypes: [],
+          voltage: ''
+        };
+        destinations = [basicDestination];
+      } catch (error) {
+        console.warn('Error creating basic destination:', error);
         // Continue with empty destinations array
       }
     }
@@ -499,4 +559,20 @@ document.getElementById('form-new-trip').addEventListener('submit', e => {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderTrips();
+
+// Debug: Verify dropdown element exists
+document.addEventListener('DOMContentLoaded', () => {
+  const dropdown = document.getElementById('country-dropdown');
+  const input = document.getElementById('nt-country');
+  if (!dropdown) {
+    console.error('Country dropdown element not found!');
+  } else {
+    console.log('Country dropdown element found:', dropdown);
+  }
+  if (!input) {
+    console.error('Country input element not found!');
+  } else {
+    console.log('Country input element found:', input);
+  }
+});
 </script>

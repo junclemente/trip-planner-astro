@@ -580,7 +580,9 @@ function renderPackingList() {
     (activePriority === null || item.priority === activePriority));
 
   const laundry = trip.laundryPlan ?? { enabled: false, everyXDays: 7 };
-  const hasIntl = hasInternationalDests(trip.destinations ?? []);
+  const profile = getProfile();
+  const homeCountryCode = profile.homeBase?.countryCode || 'US';
+  const hasIntl = hasInternationalDests(trip.destinations ?? [], homeCountryCode);
   const dismissed = trip.dismissedIntlSuggestions ?? [];
   const pendingIntlSuggestions = hasIntl && buildIntlSuggestions().some(s => !dismissed.includes(s.key));
 
@@ -841,13 +843,17 @@ document.getElementById('form-destination').addEventListener('submit', e => {
   renderHeader(); renderItinerary(); renderInfo(); renderPackingList();
   window.showToast?.(editId ? 'Destination updated' : 'Destination added');
   // Offer international suggestions after a short delay
-  if (code && code !== 'US') setTimeout(() => openIntlSuggestModal(true), 500);
+  const profile = getProfile();
+  const homeCountryCode = profile.homeBase?.countryCode || 'US';
+  if (code && code !== homeCountryCode) setTimeout(() => openIntlSuggestModal(true), 500);
 });
 
 // ── International Packing Suggestions ────────────────────────────────────────
 
 function buildIntlSuggestions() {
-  const dests = (trip.destinations ?? []).filter(d => d.countryCode && d.countryCode !== 'US');
+  const profile = getProfile();
+  const homeCountryCode = profile.homeBase?.countryCode || 'US';
+  const dests = (trip.destinations ?? []).filter(d => d.countryCode && d.countryCode !== homeCountryCode);
   if (!dests.length) return [];
   const suggestions = [];
   // Power adapters — one per unique needed plug type
@@ -970,7 +976,7 @@ function renderItinerary() {
     if (!dest) return hasDests ? `<div class="px-4 py-2 bg-gray-50 border-b border-gray-100 border-t mt-2"><span class="text-sm font-semibold text-gray-500">Other Days</span></div>` : '';
     const dateRange = (dest.arrivalDate && dest.departureDate) ? ` · ${formatDate(dest.arrivalDate)} – ${formatDate(dest.departureDate)}` : '';
     return `<div class="px-4 py-2.5 bg-indigo-50 border-b border-indigo-100 ${hasDests ? 'border-t border-indigo-100' : ''}">
-      <span class="text-sm font-bold text-indigo-900">${esc(dest.city)}${dest.country ? ', ' + esc(dest.country) : ''}</span>
+      <span class="text-sm font-bold text-indigo-900">${dest.city ? esc(dest.city) + (dest.country ? ', ' + esc(dest.country) : '') : esc(dest.country)}</span>
       <span class="text-xs text-indigo-500 ml-1.5">${esc(dateRange)}</span>
     </div>`;
   }
@@ -1139,7 +1145,7 @@ function renderInfoDestinations() {
     return `<div class="border border-gray-200 rounded-lg p-3 mb-2">
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-gray-800">${esc(d.city)}${d.country ? ', ' + esc(d.country) : ''}</p>
+          <p class="text-sm font-semibold text-gray-800">${d.city ? esc(d.city) + (d.country ? ', ' + esc(d.country) : '') : esc(d.country)}</p>
           ${dateStr ? `<p class="text-xs text-gray-500 mt-0.5">${esc(dateStr)}</p>` : ''}
           ${currStr ? `<p class="text-xs text-gray-400 mt-0.5">${esc(currStr)}${powerStr ? ' · ' + esc(powerStr) : ''}</p>` : powerStr ? `<p class="text-xs text-gray-400 mt-0.5">${esc(powerStr)}</p>` : ''}
           ${parseInt(d.voltage) >= 220 ? `<p class="text-xs text-amber-600 mt-0.5">⚡ ${esc(d.voltage)} — check device compatibility</p>` : ''}
@@ -1187,11 +1193,13 @@ function renderInfoDocuments() {
   }
 
   // Visa / entry requirements from destinations
+  const profile = getProfile();
+  const homeCountryCode = profile.homeBase?.countryCode || 'US';
   const visaItems = dests
-    .filter(d => d.countryCode && d.countryCode !== 'US')
+    .filter(d => d.countryCode && d.countryCode !== homeCountryCode)
     .map(d => {
       const country = getCountry(d.countryCode);
-      return country ? { code: d.countryCode, country: d.country || country.name, info: country.visaInfo?.US ?? 'Check entry requirements for this country.' } : null;
+      return country ? { code: d.countryCode, country: d.country || country.name, info: country.visaInfo?.[homeCountryCode] ?? 'Check entry requirements for this country.' } : null;
     })
     .filter(Boolean);
 

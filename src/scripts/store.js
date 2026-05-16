@@ -74,11 +74,35 @@ export function unarchiveTrip(id) {
 export function getProfile() {
   try {
     const stored = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
-    const defaults = { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {}, globalPeople: [] };
+    const defaults = {
+      personalEssentials: [],
+      customCategories: [],
+      customPriorities: [],
+      clothingDefaults: {},
+      globalPeople: [],
+      homeBase: {
+        country: 'United States',
+        countryCode: 'US',
+        city: '',
+        region: ''
+      }
+    };
     if (!stored) return defaults;
     return { ...defaults, ...stored };
   } catch {
-    return { personalEssentials: [], customCategories: [], customPriorities: [], clothingDefaults: {}, globalPeople: [] };
+    return {
+      personalEssentials: [],
+      customCategories: [],
+      customPriorities: [],
+      clothingDefaults: {},
+      globalPeople: [],
+      homeBase: {
+        country: 'United States',
+        countryCode: 'US',
+        city: '',
+        region: ''
+      }
+    };
   }
 }
 

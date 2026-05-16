@@ -106,10 +106,10 @@ export function calcClothing(nights, overrides = {}, profileDefaults = {}, laund
     ? Math.min(nights, laundryPlan.everyXDays) + 1
     : nights;
   return {
-    underwear: overrides.underwear ?? (base + (profileDefaults.extraUnderwear ?? 0)),
-    socks:     overrides.socks     ?? (base + (profileDefaults.extraSocks     ?? 0)),
-    outfits:   overrides.outfits   ?? (base + (profileDefaults.extraOutfits   ?? 0)),
-    pajamas:   overrides.pajamas   ?? (profileDefaults.pajamas ?? 1),
+    underwear: Number(overrides.underwear ?? (base + Number(profileDefaults.extraUnderwear ?? 0))),
+    socks:     Number(overrides.socks     ?? (base + Number(profileDefaults.extraSocks     ?? 0))),
+    outfits:   Number(overrides.outfits   ?? (base + Number(profileDefaults.extraOutfits   ?? 0))),
+    pajamas:   Number(overrides.pajamas   ?? Number(profileDefaults.pajamas ?? 1)),
   };
 }
 
@@ -144,12 +144,14 @@ export function buildInitialChecklist(tripId, nights, profileEssentials = [], cl
     items.push({
       id: genId(), tripId, dayId: null,
       text: c.text, category: 'clothing', priority: null,
-      checked: false, quantity: c.qty,
+      checked: false, quantity: Number(c.qty) || 0,
       isClothing: true, clothingType: c.type,
     });
   }
 
-  for (const pe of profileEssentials) {
+  // Ensure profileEssentials is iterable
+  const essentials = Array.isArray(profileEssentials) ? profileEssentials : [];
+  for (const pe of essentials) {
     items.push({
       id: genId(), tripId, dayId: null,
       text: pe.text, category: pe.category ?? null, priority: null,

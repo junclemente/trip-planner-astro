@@ -105,9 +105,9 @@ export function needs220VWarning(destinations) {
   );
 }
 
-// Returns true if any non-US destination exists
-export function hasInternationalDests(destinations) {
-  return destinations.some(d => d.countryCode !== 'US' && d.countryCode !== '');
+// Returns true if any international destination exists (different from home country)
+export function hasInternationalDests(destinations, homeCountryCode = 'US') {
+  return destinations.some(d => d.countryCode !== homeCountryCode && d.countryCode !== '');
 }
 
 // Friendly adapter description per plug type
