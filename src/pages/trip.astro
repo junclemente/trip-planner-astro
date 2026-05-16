@@ -814,12 +814,24 @@ function openDestinationModal(editId = null) {
   if (!editId) {
     const dests = trip.destinations ?? [];
     if (dests.length > 0) {
-      // Set arrival to last destination's departure date
-      const lastDest = dests[dests.length - 1];
-      document.getElementById('dest-arrival').value = lastDest.departureDate || trip.startDate || '';
+      // Sort destinations by arrival date to find the chronologically last one
+      const sortedDests = dests
+        .filter(d => d.arrivalDate) // Only destinations with arrival dates
+        .sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
+
+      if (sortedDests.length > 0) {
+        // Set arrival to last destination's departure date
+        const lastDest = sortedDests[sortedDests.length - 1];
+        document.getElementById('dest-arrival').value = lastDest.departureDate || trip.endDate || '';
+      } else {
+        // No destinations with dates, default to trip start
+        document.getElementById('dest-arrival').value = trip.startDate || '';
+      }
     } else {
+      // No existing destinations, default to trip start
       document.getElementById('dest-arrival').value = trip.startDate || '';
     }
+    // Always default departure to trip end date
     document.getElementById('dest-departure').value = trip.endDate || '';
   }
 
@@ -869,8 +881,8 @@ document.getElementById('form-destination').addEventListener('submit', e => {
   const idx = trip.destinations.findIndex(d => d.id === dest.id);
   if (idx >= 0) trip.destinations[idx] = dest; else trip.destinations.push(dest);
 
-  // Sort by arrival date
-  trip.destinations.sort((a, b) => (a.arrivalDate ?? '').localeCompare(b.arrivalDate ?? ''));
+  // Apply auto-adjustment for dates
+  autoAdjustDestinationDates(trip);
   recalcDatesFromDests();
   saveTrip(trip);
   closeModal('modal-destination');
@@ -1509,6 +1521,7 @@ function attachInfoListeners() {
       confirmAction('🗺️', 'Remove destination?', `Remove "${d?.city || 'this destination'}" from the trip?`, 'Remove', 'btn-danger',
         () => {
           trip.destinations = (trip.destinations ?? []).filter(d => d.id !== btn.dataset.destId);
+          autoAdjustDestinationDates(trip);
           recalcDatesFromDests();
           saveTrip(trip); renderHeader(); renderItinerary(); renderInfo(); renderPackingList();
         });
@@ -1585,9 +1598,42 @@ function attachInfoListeners() {
   });
 }
 
+function autoAdjustDestinationDates(trip) {
+  if (!trip.destinations || trip.destinations.length <= 1) {
+    // Single destination: arrival = trip start, departure = trip end
+    if (trip.destinations && trip.destinations.length === 1) {
+      trip.destinations[0].arrivalDate = trip.startDate;
+      trip.destinations[0].departureDate = trip.endDate;
+    }
+    return trip;
+  }
+
+  // Sort destinations by arrival date
+  trip.destinations.sort((a, b) =>
+    new Date(a.arrivalDate || '1970-01-01') - new Date(b.arrivalDate || '1970-01-01')
+  );
+
+  // Chain dates: each destination's departure = next destination's arrival
+  for (let i = 0; i < trip.destinations.length - 1; i++) {
+    trip.destinations[i].departureDate = trip.destinations[i + 1].arrivalDate;
+  }
+
+  // First destination arrival always = trip start date
+  trip.destinations[0].arrivalDate = trip.startDate;
+
+  // Last destination departure always = trip end date
+  trip.destinations[trip.destinations.length - 1].departureDate = trip.endDate;
+
+  return trip;
+}
+
 function recalcDatesFromDests() {
   const dests = trip.destinations ?? [];
   if (dests.length === 0) return false;
+
+  // Apply auto-adjustment logic
+  autoAdjustDestinationDates(trip);
+
   const arrivals = dests.map(d => d.arrivalDate).filter(Boolean).sort();
   const departures = dests.map(d => d.departureDate).filter(Boolean).sort();
   if (!arrivals.length || !departures.length) return false;
