@@ -1,0 +1,394 @@
+<!-- ── New Trip Modal ── -->
+<div id="modal-new-trip" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="flex items-center justify-between p-4 border-b">
+      <h2 class="text-lg font-bold">New Trip</h2>
+      <button id="close-new-trip" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+    <form id="form-new-trip" class="p-4 space-y-4" style="overflow: visible;">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Trip Name *</label>
+        <input id="nt-name" type="text" class="input" placeholder="e.g. Weekend in NYC" required />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Country *</label>
+        <div class="relative overflow-visible">
+          <input id="nt-country" type="text" class="input" placeholder="Start typing country name..." required
+                 autocomplete="off" />
+          <ul id="country-dropdown" class="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto top-full mt-1" style="z-index: 9999;">
+            <!-- Country options populated by JavaScript -->
+          </ul>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Departing From</label>
+        <div class="relative overflow-visible">
+          <input id="nt-depart" type="text" class="input" placeholder="Start typing country name..." autocomplete="off" />
+          <ul id="depart-dropdown" class="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto top-full mt-1" style="z-index: 9999;">
+            <!-- Country options populated by JavaScript -->
+          </ul>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+        <input id="nt-start" type="date" class="input" required />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Template</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+            <input type="radio" name="template" value="overnight" class="text-indigo-600" />
+            <div><div class="text-sm font-medium">Overnight</div><div class="text-xs text-gray-500">1 night</div></div>
+          </label>
+          <label class="flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+            <input type="radio" name="template" value="weekend" class="text-indigo-600" />
+            <div><div class="text-sm font-medium">Weekend</div><div class="text-xs text-gray-500">2 nights</div></div>
+          </label>
+          <label class="flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+            <input type="radio" name="template" value="short" class="text-indigo-600" />
+            <div><div class="text-sm font-medium">Short Trip</div><div class="text-xs text-gray-500">3 nights</div></div>
+          </label>
+          <label class="flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+            <input type="radio" name="template" value="week" class="text-indigo-600" />
+            <div><div class="text-sm font-medium">Week Trip</div><div class="text-xs text-gray-500">7 nights</div></div>
+          </label>
+          <label class="col-span-2 flex items-center gap-2 border rounded-lg p-2.5 cursor-pointer hover:border-indigo-400 transition-colors">
+            <input type="radio" name="template" value="custom" class="text-indigo-600" />
+            <div><div class="text-sm font-medium">Custom</div><div class="text-xs text-gray-500">Set nights manually</div></div>
+          </label>
+        </div>
+      </div>
+      <div id="custom-nights-row" class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Number of Nights *</label>
+        <input id="nt-nights" name="nt-nights" type="number" min="1" max="365" class="input" placeholder="e.g. 5" required />
+      </div>
+      <div id="nt-end-display" class="text-sm text-gray-500 hidden">
+        Returns: <span id="nt-end-date-text" class="font-medium text-gray-800"></span>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="button" id="cancel-new-trip" class="btn-secondary flex-1">Cancel</button>
+        <button type="submit" class="btn-primary flex-1">Create Trip</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+import { getTrips, saveTrip, getProfile, genId } from '../scripts/store.js';
+import {
+  TEMPLATES, buildDays, buildInitialChecklist, calcEndDate, formatDateRange,
+} from '../scripts/templates.js';
+import { initCountryAutocomplete, clearAutocomplete } from '../scripts/autocomplete.js';
+
+const BASE = import.meta.env.BASE_URL;
+
+// ── New trip modal ────────────────────────────────────────────────────────────
+
+let selectedOriginCountry = null;
+
+function openNewTripModal() {
+  document.getElementById('modal-new-trip').classList.remove('hidden');
+  // Ensure a template is always selected by default
+  const radio = document.querySelector('input[name="template"][value="weekend"]');
+  if (radio) {
+    radio.checked = true;
+    updateEndDate();
+  }
+
+  // Initialize nights input state (disabled since weekend template is selected)
+  const nightsInput = document.getElementById('nt-nights');
+  nightsInput.disabled = true;
+  nightsInput.required = false;
+
+  // Auto-populate "Departing From" with home base
+  const profile = getProfile();
+  const departInput = document.getElementById('nt-depart');
+  if (!departInput.value.trim() && profile.homeBase?.country) {
+    // Set the home base country as selected origin
+    selectedOriginCountry = {
+      name: profile.homeBase.country,
+      code: profile.homeBase.countryCode || ''
+    };
+
+    // Build departing from string
+    const parts = [profile.homeBase.city, profile.homeBase.region].filter(Boolean);
+    if (parts.length > 0) {
+      departInput.value = `${profile.homeBase.country} (${parts.join(', ')})`;
+    } else {
+      departInput.value = profile.homeBase.country;
+    }
+  }
+
+  // Initialize country autocomplete
+  initCountryAutocomplete('nt-country', 'country-dropdown', (country) => {
+    window._selectedTripCountry = country; // global backup
+    // Auto-fill trip name if empty
+    const nameInput = document.getElementById('nt-name');
+    if (!nameInput.value.trim()) {
+      nameInput.value = `Trip to ${country.name}`;
+    }
+  });
+
+  // Initialize departing from autocomplete
+  initCountryAutocomplete('nt-depart', 'depart-dropdown', (country) => {
+    selectedOriginCountry = country; // local variable
+    window._selectedTripCountry = country; // global backup
+    departInput.value = country.name;
+  });
+
+  // Handle clearing of departing from field
+  departInput.addEventListener('input', (e) => {
+    if (!e.target.value.trim()) {
+      selectedOriginCountry = null;
+    }
+  });
+
+  setTimeout(() => document.getElementById('nt-name').focus(), 50);
+}
+
+function closeNewTripModal() {
+  document.getElementById('modal-new-trip').classList.add('hidden');
+  document.getElementById('form-new-trip').reset();
+  document.getElementById('custom-nights-row').classList.add('hidden');
+  document.getElementById('nt-end-display').classList.add('hidden');
+
+  // Reset nights input state
+  const nightsInput = document.getElementById('nt-nights');
+  nightsInput.disabled = true;
+  nightsInput.required = false;
+
+  // Clear autocomplete state
+  clearAutocomplete('nt-country', 'country-dropdown');
+  clearAutocomplete('nt-depart', 'depart-dropdown');
+  window._selectedTripCountry = null;
+  selectedOriginCountry = null;
+}
+
+function updateEndDate() {
+  const start = document.getElementById('nt-start').value;
+  const template = document.querySelector('input[name="template"]:checked')?.value;
+  const customNights = parseInt(document.getElementById('nt-nights').value);
+  let nights = null;
+  if (template && template !== 'custom' && TEMPLATES[template as keyof typeof TEMPLATES]) {
+    nights = TEMPLATES[template as keyof typeof TEMPLATES].nights;
+  } else if (template === 'custom' && customNights > 0) {
+    nights = customNights;
+  }
+  if (start && nights !== null) {
+    const end = calcEndDate(start, nights);
+    const txt = new Date(`${end}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    document.getElementById('nt-end-date-text').textContent = txt;
+    document.getElementById('nt-end-display').classList.remove('hidden');
+  } else {
+    document.getElementById('nt-end-display').classList.add('hidden');
+  }
+}
+
+function createDestinationFromCountry(country, startDate, endDate) {
+  if (!country) return null;
+
+  return {
+    id: genId(),
+    country: country.name,
+    countryCode: country.code,
+    city: '',
+    region: '',
+    arrivalDate: startDate,
+    departureDate: endDate,
+    currency: country.currency,
+    currencyCode: country.currencyCode,
+    currencyNotes: '',
+    plugTypes: country.plugTypes || [],
+    voltage: country.voltage || ''
+  };
+}
+
+function createOriginFromSelection(selectedOriginCountry, departFromText, homeBase) {
+  // If user selected a country from autocomplete
+  if (selectedOriginCountry) {
+    return {
+      city: departFromText || '',
+      country: selectedOriginCountry.name,
+      countryCode: selectedOriginCountry.code
+    };
+  }
+
+  // If user typed but didn't select, or field is empty, fall back to home base
+  const fallbackHomeBase = homeBase || { country: 'United States', countryCode: 'US' };
+
+  return {
+    city: departFromText || '',
+    country: fallbackHomeBase.country,
+    countryCode: fallbackHomeBase.countryCode || 'US'
+  };
+}
+
+// ── Event listeners ──────────────────────────────────────────────────────────
+
+// Listen for external request to open modal
+window.addEventListener('open-new-trip-modal', openNewTripModal);
+
+document.getElementById('close-new-trip').addEventListener('click', closeNewTripModal);
+document.getElementById('cancel-new-trip').addEventListener('click', closeNewTripModal);
+document.getElementById('modal-new-trip').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeNewTripModal();
+});
+
+document.querySelectorAll('input[name="template"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const isCustom = r.value === 'custom';
+    const nightsInput = document.getElementById('nt-nights');
+    const nightsRow = document.getElementById('custom-nights-row');
+
+    // Toggle visibility
+    nightsRow.classList.toggle('hidden', !isCustom);
+
+    // Manage validation attributes
+    if (isCustom) {
+      nightsInput.disabled = false;
+      nightsInput.required = true;
+    } else {
+      nightsInput.disabled = true;
+      nightsInput.required = false;
+    }
+
+    updateEndDate();
+  });
+});
+
+document.getElementById('nt-start').addEventListener('change', updateEndDate);
+document.getElementById('nt-nights').addEventListener('input', updateEndDate);
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNewTripModal(); });
+
+document.getElementById('form-new-trip').addEventListener('submit', e => {
+  e.preventDefault();
+
+  try {
+    const name = document.getElementById('nt-name').value.trim();
+    const departFrom = document.getElementById('nt-depart').value.trim();
+    const startDate = document.getElementById('nt-start').value;
+    const template = document.querySelector('input[name="template"]:checked')?.value;
+
+    if (!name) {
+      window.showToast?.('Please enter a trip name');
+      return;
+    }
+
+    if (!startDate) {
+      window.showToast?.('Please select a start date');
+      return;
+    }
+
+    // Handle template validation - handle case where no template is selected
+    let nights = null;
+    if (template && template !== 'custom' && TEMPLATES[template as keyof typeof TEMPLATES]) {
+      nights = TEMPLATES[template as keyof typeof TEMPLATES]?.nights;
+    } else if (template === 'custom') {
+      nights = parseInt(document.getElementById('nt-nights').value);
+    } else {
+      // If no template selected, default to weekend (2 nights)
+      nights = 2;
+    }
+
+    if (!nights || nights < 1) {
+      window.showToast?.('Please set number of nights');
+      return;
+    }
+
+    const endDate = calcEndDate(startDate, nights);
+    const profile = getProfile();
+    const tripId = `trip-${Date.now().toString(36)}`;
+    const days = buildDays(tripId, startDate, nights);
+    const checklistItems = buildInitialChecklist(tripId, nights, profile?.personalEssentials || [], profile?.clothingDefaults || {});
+
+    // Create destination from selected country (fault-tolerant)
+    let destinations = [];
+    let destinationDisplayName = '';
+
+    const countryInput = document.getElementById('nt-country').value.trim();
+
+    const selectedCountry = window._selectedTripCountry;
+    if (selectedCountry) {
+      // User selected from dropdown
+      try {
+        const destinationObj = createDestinationFromCountry(selectedCountry, startDate, endDate);
+        if (destinationObj) {
+          destinations = [destinationObj];
+          destinationDisplayName = selectedCountry.name;
+        }
+      } catch (error) {
+        console.warn('Error creating destination from country, creating trip with empty destinations:', error);
+        // Continue with empty destinations array
+      }
+    } else if (countryInput) {
+      // User typed but didn't select from dropdown - create basic destination
+      try {
+        destinationDisplayName = countryInput;
+        const basicDestination = {
+          id: genId(),
+          country: countryInput,
+          countryCode: '',
+          city: '',
+          region: '',
+          arrivalDate: startDate,
+          departureDate: endDate,
+          currency: '',
+          currencyCode: '',
+          currencyNotes: '',
+          plugTypes: [],
+          voltage: ''
+        };
+        destinations = [basicDestination];
+      } catch (error) {
+        console.warn('Error creating basic destination:', error);
+        // Continue with empty destinations array
+      }
+    }
+
+    const trip = {
+      id: tripId,
+      name,
+      destination: destinationDisplayName, // Keep for backward compatibility
+      departFrom,
+      startDate,
+      endDate,
+      nights,
+      template: template ?? 'custom',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      archivedAt: null,
+      clothingOverrides: null,
+      days,
+      checklistItems,
+      itineraryEvents: [],
+      destinations,
+      origin: createOriginFromSelection(selectedOriginCountry, departFrom, profile.homeBase),
+      travelDocuments: {
+        passport: { name: '', expiryDate: '' },
+        insurance: { hasInsurance: false, provider: '', policyNumber: '', notes: '' },
+        customReminders: [],
+        dismissedVisaReminders: []
+      },
+      laundryPlan: { enabled: false, everyXDays: 7 },
+      dismissedIntlSuggestions: [],
+    };
+
+    saveTrip(trip);
+    closeNewTripModal();
+    window.showToast?.(`"${name}" created!`);
+
+    // Dispatch trip-created event with trip details
+    window.dispatchEvent(new CustomEvent('trip-created', {
+      detail: {
+        tripId,
+        name
+      }
+    }));
+
+  } catch (error) {
+    console.error('Error creating trip:', error);
+    window.showToast?.('Error creating trip. Please try again.');
+  }
+});
+</script>
