@@ -884,6 +884,7 @@ document.getElementById('form-destination').addEventListener('submit', e => {
   // Apply auto-adjustment for dates
   autoAdjustDestinationDates(trip);
   recalcDatesFromDests();
+  trip.dismissedIntlSuggestions = [];
   saveTrip(trip);
   closeModal('modal-destination');
   renderHeader(); renderItinerary(); renderInfo(); renderPackingList();
@@ -1523,6 +1524,7 @@ function attachInfoListeners() {
           trip.destinations = (trip.destinations ?? []).filter(d => d.id !== btn.dataset.destId);
           autoAdjustDestinationDates(trip);
           recalcDatesFromDests();
+          trip.dismissedIntlSuggestions = [];
           saveTrip(trip); renderHeader(); renderItinerary(); renderInfo(); renderPackingList();
         });
     });
